@@ -1,6 +1,6 @@
-import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')  # Or 'Qt5Agg', 'GTK3Agg', etc.
+#matplotlib.use('TkAgg')  # Use 'TkAgg' backend for interactive plotting
+import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 from scipy.spatial import ConvexHull
@@ -21,20 +21,20 @@ def generate_points_in_circle(N, radius, seed=None):
     points = np.vstack((x, y)).T
     return points
 
-def apply_clustering(points, eps, min_samples, min_cluster_size):
+def apply_clustering(points, eps, min_samples, min_cluster_size, min_area):
     """
     Apply DBSCAN clustering algorithm to the given points.
     Returns cluster labels and properties for each cluster.
     """
     clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
     labels = clustering.labels_
-    clusters = extract_cluster_properties(points, labels, min_cluster_size)
+    clusters = extract_cluster_properties(points, labels, min_cluster_size, min_area)
     return labels, clusters
 
-def extract_cluster_properties(points, labels, min_cluster_size):
+def extract_cluster_properties(points, labels, min_cluster_size, min_area):
     """
     Extract properties (S', lambda') for each cluster.
-    Filters out clusters with fewer than min_cluster_size points.
+    Filters out clusters with fewer than min_cluster_size points or area less than min_area.
     """
     clusters = {}
     unique_labels = set(labels)
@@ -46,8 +46,8 @@ def extract_cluster_properties(points, labels, min_cluster_size):
         if N_prime < min_cluster_size:
             continue  # Skip small clusters
         S_prime = compute_cluster_area(cluster_points)
-        if S_prime == 0:
-            continue  # Skip clusters with zero area
+        if S_prime < min_area:
+            continue  # Skip clusters with area less than min_area
         lambda_prime = N_prime / S_prime
         clusters[label] = {
             'points': cluster_points,
@@ -66,7 +66,7 @@ def compute_cluster_area(cluster_points):
     hull = ConvexHull(cluster_points)
     return hull.volume  # For 2D, 'volume' returns area
 
-def simulate_joint_distribution(N, radius, eps, min_samples, min_cluster_size, stop_flag, seed=None):
+def simulate_joint_distribution(N, radius, eps, min_samples, min_cluster_size, min_area, stop_flag, seed=None):
     """
     Run simulations to build the joint distribution of (S', lambda').
     """
@@ -91,7 +91,7 @@ def simulate_joint_distribution(N, radius, eps, min_samples, min_cluster_size, s
             iter_start_time = time.time()
             sim_seed = np.random.randint(0, 1e9)
             points = generate_points_in_circle(N, radius, seed=sim_seed)
-            labels, clusters = apply_clustering(points, eps, min_samples, min_cluster_size)
+            labels, clusters = apply_clustering(points, eps, min_samples, min_cluster_size, min_area)
             for cluster in clusters.values():
                 S_prime = cluster['S_prime']
                 lambda_prime = cluster['lambda_prime']
@@ -100,9 +100,10 @@ def simulate_joint_distribution(N, radius, eps, min_samples, min_cluster_size, s
             iter_end_time = time.time()
             iteration_times.append(iter_end_time - iter_start_time)
 
-            # Display iteration metrics
-            avg_time = np.mean(iteration_times)
-            print(f"Iteration: {iteration}, Avg Time per Iteration: {avg_time:.4f} seconds")
+            # Print metrics every 1000 iterations
+            if iteration % 1000 == 0:
+                avg_time = np.mean(iteration_times)
+                print(f"Iteration: {iteration}, Avg Time per Iteration: {avg_time:.4f} seconds")
 
     except KeyboardInterrupt:
         print("\nSimulation interrupted by user.")
@@ -134,36 +135,44 @@ def plotting_process(stop_flag, update_interval=5):
     data_file = 'simulation_data.csv'
     plt.ion()  # Turn on interactive mode
     fig, ax = plt.subplots(figsize=(8, 6))
+    last_iteration = 0
     while not stop_flag.value:
         if os.path.exists(data_file):
             joint_data_df = pd.read_csv(data_file)
             if not joint_data_df.empty:
-                S_values = joint_data_df['S_prime'].values
-                lambda_values = joint_data_df['lambda_prime'].values
-                # Limit axes ranges to focus on relevant data
-                max_S = np.percentile(S_values, 99)
-                max_lambda = np.percentile(lambda_values, 99)
-                ax.clear()
-                # Compute the 2D histogram separately
-                hist, xedges, yedges = np.histogram2d(
-                    S_values, lambda_values,
-                    bins=50,
-                    range=[[0, max_S], [0, max_lambda]],
-                    density=False
-                )
-                # Normalize frequency by number of iterations
-                hist /= joint_data_df['iteration'].max()
-                # Plot the normalized histogram
-                X, Y = np.meshgrid(xedges, yedges)
-                pcm = ax.pcolormesh(X, Y, hist.T, cmap='viridis')
-                ax.set_xlabel("Cluster Area (S')")
-                ax.set_ylabel("Cluster Density (λ')")
-                ax.set_title("Real-Time Joint Distribution of Cluster Area and Density")
-                cbar = plt.colorbar(pcm, ax=ax, label='Average Frequency per Iteration')
-                plt.tight_layout()
-                plt.draw()
-                plt.pause(0.01)
-                cbar.remove()
+                current_iteration = joint_data_df['iteration'].max()
+                # Update plot every 1000 iterations
+                if current_iteration - last_iteration >= 1000:
+                    last_iteration = current_iteration
+                    S_values = joint_data_df['S_prime'].values
+                    lambda_values = joint_data_df['lambda_prime'].values
+                    N_values = lambda_values * S_values  # Calculate N' from existing data
+
+                    # Limit axes ranges to focus on relevant data
+                    max_S = np.percentile(S_values, 99)
+                    max_N = np.percentile(N_values, 99)
+
+                    ax.clear()
+                    # Compute the 2D histogram for S' vs. N'
+                    hist, xedges, yedges = np.histogram2d(
+                        S_values, N_values,
+                        bins=50,
+                        range=[[0.5, max_S], [min(N_values), max_N]],
+                        density=False
+                    )
+                    # Normalize frequency per 1000 iterations
+                    hist /= (current_iteration / 1000)
+                    # Plot the normalized histogram
+                    X, Y = np.meshgrid(xedges, yedges)
+                    pcm = ax.pcolormesh(X, Y, hist.T, cmap='viridis')
+                    ax.set_xlabel("Cluster Area (S')")
+                    ax.set_ylabel("Number of Points in Cluster (N')")
+                    ax.set_title("Real-Time Distribution of Cluster Area vs. Number of Points")
+                    cbar = plt.colorbar(pcm, ax=ax, label='Average Frequency per 1000 Iterations')
+                    plt.tight_layout()
+                    plt.draw()
+                    plt.pause(0.01)
+                    cbar.remove()
         time.sleep(update_interval)
     plt.ioff()
     plt.show()
@@ -178,6 +187,7 @@ def main():
     eps = 1.0  # DBSCAN epsilon parameter (adjust based on scale)
     min_samples = 10  # Increased to prevent small clusters
     min_cluster_size = 10  # Minimum number of points in a cluster
+    min_area = 0.5  # Minimum cluster area
     seed = None  # Random seed for reproducibility
 
     # Flag to signal processes to stop
@@ -185,7 +195,7 @@ def main():
 
     # Start the simulation process
     sim_process = Process(target=simulate_joint_distribution, args=(
-        N, radius, eps, min_samples, min_cluster_size, stop_flag, seed
+        N, radius, eps, min_samples, min_cluster_size, min_area, stop_flag, seed
     ))
 
     # Start the plotting process

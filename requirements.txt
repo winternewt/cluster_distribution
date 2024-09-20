@@ -1,0 +1,27 @@
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1725278078093/work/certifi
+colorama @ file:///home/conda/feedstock_root/build_artifacts/colorama_1666700638685/work
+contourpy @ file:///home/conda/feedstock_root/build_artifacts/contourpy_1725378328697/work
+cycler @ file:///home/conda/feedstock_root/build_artifacts/cycler_1696677705766/work
+fonttools @ file:///home/conda/feedstock_root/build_artifacts/fonttools_1725391243723/work
+joblib @ file:///home/conda/feedstock_root/build_artifacts/joblib_1714665484399/work
+kiwisolver @ file:///home/conda/feedstock_root/build_artifacts/kiwisolver_1725459266942/work
+matplotlib==3.9.2
+munkres==1.1.4
+numpy @ file:///home/conda/feedstock_root/build_artifacts/numpy_1725411817006/work/dist/numpy-2.1.1-cp312-cp312-linux_x86_64.whl#sha256=cd5cac2a2861e1631cfe0afbe7c714190d854a4df5dc111aa5d306900d2d3abe
+packaging @ file:///home/conda/feedstock_root/build_artifacts/packaging_1718189413536/work
+pandas==2.2.2
+pillow @ file:///home/conda/feedstock_root/build_artifacts/pillow_1726075084513/work
+pyparsing @ file:///home/conda/feedstock_root/build_artifacts/pyparsing_1724616129934/work
+PySide6==6.7.2
+python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/python-dateutil_1709299778482/work
+pytz==2024.2
+scikit-learn @ file:///home/conda/feedstock_root/build_artifacts/scikit-learn_1726082671867/work/dist/scikit_learn-1.5.2-cp312-cp312-linux_x86_64.whl#sha256=7788ecb5f833925f336ead218eb6aff84070ef8d4c6457fe66e41ed104ed2600
+scipy @ file:///home/conda/feedstock_root/build_artifacts/scipy-split_1724327061663/work/dist/scipy-1.14.1-cp312-cp312-linux_x86_64.whl#sha256=273d4a0dca8845537bb3b7a02f60b5c84296e444f352aff32292ded3941d0b0f
+setuptools==73.0.1
+shiboken6==6.7.2
+six @ file:///home/conda/feedstock_root/build_artifacts/six_1620240208055/work
+threadpoolctl @ file:///home/conda/feedstock_root/build_artifacts/threadpoolctl_1714400101435/work
+tornado @ file:///home/conda/feedstock_root/build_artifacts/tornado_1724956131631/work
+tqdm @ file:///home/conda/feedstock_root/build_artifacts/tqdm_1722737464726/work
+tzdata==2024.1
+wheel==0.44.0
