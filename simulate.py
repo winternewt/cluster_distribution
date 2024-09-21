@@ -7,6 +7,7 @@ from multiprocessing import Pool
 from sklearn.cluster import DBSCAN
 from scipy.spatial import ConvexHull
 
+
 def generate_points_in_circle(N, radius, rng):
     r = radius * np.sqrt(rng.uniform(size=N))
     theta = 2 * np.pi * rng.uniform(size=N)
@@ -49,6 +50,7 @@ def simulate_once(args):
         return data
 
 def simulate_parallel(N, radius, eps, min_samples, min_cluster_size, min_area, total_iterations, n_processes, data_file):
+    interrupted=False
     iteration = 0
     clusters_found = 0
     start_time = time.time()
@@ -88,25 +90,28 @@ def simulate_parallel(N, radius, eps, min_samples, min_cluster_size, min_area, t
             avg_time_per_iter = (time.time() - start_time) / iteration
             print(f"Iteration: {iteration}, Clusters found so far: {clusters_found}, Avg Time per Iteration: {avg_time_per_iter:.5f} seconds")
 
-            # Termination criterion: If clusters_found is zero after total_iterations, return 0
-            if iteration >= total_iterations and clusters_found == 0:
-                return 0
+            # Termination criterion: If clusters_found is less than 1 in 1000
+            if int(iteration//batch_size) > clusters_found :
+                return clusters_found, interrupted
+
     except KeyboardInterrupt:
         print("Simulation interrupted by user.")
+        interrupted = True
     finally:
         total_time = time.time() - start_time
         print(f"Total iterations completed: {iteration}")
         print(f"Total simulation time: {total_time:.2f} seconds")
         print(f"Data saved to {data_file}")
 
-    return clusters_found
+    return clusters_found, interrupted
 
 def plot_experiment_results(results_df):
     plt.figure(figsize=(10, 6))
     plt.plot(results_df['eps'], results_df['avg_ratio'], label='Average Ratio')
     plt.plot(results_df['eps'], results_df['max_ratio'], label='Maximum Ratio')
     plt.xlabel('Epsilon (eps)')
-    plt.ylabel('Ratio (lambda\'/lambda0 * S\'/S0)')
+    plt.ylabel('Ratio (lambda\'/lambda0)') 
+#   plt.ylabel('Ratio (lambda\'/lambda0 * S\'/S0)')
     plt.title('Signal-to-Noise Ratio vs. Epsilon')
     plt.legend()
     plt.grid(True)
@@ -120,7 +125,7 @@ def main():
     min_samples = 10  # DBSCAN min_samples parameter
     min_cluster_size = 10  # Minimum number of points in a cluster
     min_area = 0.5  # Minimum cluster area
-    total_iterations_per_eps = 1000  # Number of iterations to run per eps
+    total_iterations_per_eps = 6000  # Number of iterations to run per eps
     n_processes = 16  # Number of processes to use for multiprocessing
 
     # Constants
@@ -128,10 +133,10 @@ def main():
     lambda0 = N / S0  # Initial point density
 
     # Eps values to iterate over
-    eps_values = np.arange(1.0, 10.0, 0.01)  # Adjust the upper limit as needed
+    eps_values = np.arange(0.80, 2.90, 0.01)  # Adjust the upper limit as needed
 
-    # Initialize a DataFrame to store results
-    results_df = pd.DataFrame(columns=['eps', 'avg_ratio', 'max_ratio', 'max_S_prime', 'clusters_found'])
+    # Initialize a list to store results
+    results_list = []
 
     for eps in eps_values:
         print(f"\nStarting simulations for eps = {eps:.2f}")
@@ -139,10 +144,14 @@ def main():
         data_file = f'simulation_data_N{N}_radius{radius}_eps{eps:.2f}.csv'
 
         # Run simulations for the current eps
-        clusters_found = simulate_parallel(
+        clusters_found, interrupted = simulate_parallel(
             N, radius, eps, min_samples, min_cluster_size, min_area,
             total_iterations_per_eps, n_processes, data_file
         )
+
+        print(f" Valid clusters --- {clusters_found}")
+        if interrupted:
+           break
 
         # Termination criteria: If 1000 iterations yielded 0 clusters
         if clusters_found == 0:
@@ -151,12 +160,12 @@ def main():
 
         # Read the data
         df = pd.read_csv(data_file)
-        # Filter out placeholder entries
-        df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)]
+        # Filter out placeholder entries and create a copy
+        df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
 
         # Compute lambda' and ratios
         df_valid['lambda_prime'] = df_valid['N_prime'] / df_valid['S_prime']
-        df_valid['ratio'] = (df_valid['lambda_prime'] / lambda0) * (df_valid['S_prime'] / S0)
+        df_valid['ratio'] = (df_valid['lambda_prime'] / lambda0) # * (df_valid['S_prime'] / S0)
 
         # Check if the largest S' exceeds 1/4 * pi * r^2
         max_S_prime = df_valid['S_prime'].max()
@@ -168,14 +177,20 @@ def main():
         avg_ratio = df_valid['ratio'].mean()
         max_ratio = df_valid['ratio'].max()
 
-        # Store the results
-        results_df = results_df.append({
+        # Store the results in the list
+        results_list.append({
             'eps': eps,
             'avg_ratio': avg_ratio,
             'max_ratio': max_ratio,
             'max_S_prime': max_S_prime,
             'clusters_found': clusters_found
-        }, ignore_index=True)
+        })
+
+    if interrupted:
+      return
+
+    # Create a DataFrame from the results list
+    results_df = pd.DataFrame(results_list)
 
     # Save the results
     results_df.to_csv('simdata/eps_experiment_results.csv', index=False)
