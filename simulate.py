@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
 import numpy as np
 import pandas as pd
 import os
 import time
+from math import sqrt, pi
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from sklearn.cluster import DBSCAN
@@ -107,12 +109,16 @@ def simulate_parallel(N, radius, eps, min_samples, min_cluster_size, min_area, t
 
 def plot_experiment_results(results_df):
     plt.figure(figsize=(10, 6))
-    plt.plot(results_df['eps'], results_df['avg_ratio'], label='Average Ratio')
-    plt.plot(results_df['eps'], results_df['max_ratio'], label='Maximum Ratio')
+    plt.plot(results_df['eps'], results_df['avg_ratio'], label='Average Lambda Ratio')
+    plt.plot(results_df['eps'], results_df['max_ratio'], label='Maximum Lambda Ratio')
+    plt.plot(results_df['eps'], results_df['avg_N'], label='Average N')
+    plt.plot(results_df['eps'], results_df['max_N'], label='Maximum N')
+    plt.plot(results_df['eps'], results_df['avg_R'], label='Average cluster Radius')
+    plt.plot(results_df['eps'], results_df['max_R'], label='Maximum  cluster Radius')
     plt.xlabel('Epsilon (eps)')
-    plt.ylabel('Ratio (lambda\'/lambda0)') 
+    plt.ylabel('Cluster parameters')
 #   plt.ylabel('Ratio (lambda\'/lambda0 * S\'/S0)')
-    plt.title('Signal-to-Noise Ratio vs. Epsilon')
+    plt.title('Cluster parameters vs. Epsilon')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -125,7 +131,7 @@ def main():
     min_samples = 10  # DBSCAN min_samples parameter
     min_cluster_size = 10  # Minimum number of points in a cluster
     min_area = 0.5  # Minimum cluster area
-    total_iterations_per_eps = 6000  # Number of iterations to run per eps
+    total_iterations_per_eps = 10000  # Number of iterations to run per eps
     n_processes = 16  # Number of processes to use for multiprocessing
 
     # Constants
@@ -141,7 +147,7 @@ def main():
     for eps in eps_values:
         print(f"\nStarting simulations for eps = {eps:.2f}")
 
-        data_file = f'simulation_data_N{N}_radius{radius}_eps{eps:.2f}.csv'
+        data_file = f'simdata/v2/simulation_data_N{N}_radius{radius}_eps{eps:.2f}.csv'
 
         # Run simulations for the current eps
         clusters_found, interrupted = simulate_parallel(
@@ -176,10 +182,22 @@ def main():
         # Compute average and maximum ratio
         avg_ratio = df_valid['ratio'].mean()
         max_ratio = df_valid['ratio'].max()
+        avg_N = df_valid['N_prime'].mean()
+        max_N = df_valid['N_prime'].max()
+        avg_R = sqrt(df_valid['S_prime'].mean())
+        max_R = sqrt(df_valid['S_prime'].max()/pi)
+
+        if max_N > sqrt(N):
+            print(f"Max N' ({max_S_prime}) exceeds sqrt(N) = {sqrt(N):.2f}. Stopping eps increase.")
+            break
 
         # Store the results in the list
         results_list.append({
             'eps': eps,
+            'avg_N': avg_N,
+            'max_N': max_N,
+            'avg_R': avg_R,
+            'max_R': max_R,
             'avg_ratio': avg_ratio,
             'max_ratio': max_ratio,
             'max_S_prime': max_S_prime,
