@@ -248,6 +248,29 @@ The `R→∞` as hull-area `S'→0` blow-up is a genuine **ultraviolet divergenc
 
 ---
 
+## Finding #8 — KDE: a smooth, singularity-free detector + where the analytic null lives
+
+**Scripts:** `analysis/kde_null.py`, `kde_signal.py` → `kde_null_h*.png`, `kde_vs_dbscan.png`. Statistic = standardized peak of the kernel-smoothed intensity `Z_max = max_x (ρ̂−μ)/σ`, computed by binning + Gaussian filter. No `S'→0` singularity (bandwidth `h` is the regularization scale).
+
+1. **The analytic look-elsewhere (random-field theory) works only in the Gaussian regime.** RFT gives `P(Z_max>u) ≈ R₂·(4ln2)/(2π)^{3/2}·u·e^{−u²/2}` (`R₂=area/FWHM²` resels) — *if* the smoothed field is Gaussian, i.e. many points per kernel `λ₀πh²≫1`.
+   - `h=4` (16 pts/kernel): field ~Gaussian, **RFT matches MC** within ~2–5× — a usable closed-form multiple-testing correction.
+   - `h=1.2` (=eps, **1.4 pts/kernel**): field is sparse and skewed; **RFT fails by ~10²–10⁵×**. So at the resolution where small (N'~10) clusters actually live, the field is intrinsically non-Gaussian — *this is precisely why the problem has no closed-form null at the scale that matters*. You get the analytic look-elsewhere only by blurring to large scales (and losing the small clusters); otherwise it's MC or the DBSCAN α≈7 tail.
+
+2. **KDE and DBSCAN converge partially on the null, strongly on signal.**
+   - *Null* (same CSR fields, h=eps): Spearman(KDE `Z_max`, DBSCAN `max R`) = 0.37; top-5% extreme-field overlap = 30% (**6× enrichment** over chance). Positively correlated but **complementary, not redundant** — `max R` chases the single tightest blob, `Z_max` the broadest smoothed peak.
+   - *Signal* (the extended splat that defeated raw R with z_R=−6, Finding #5b): KDE detects it at **100% (median Z_max=13 vs null 99th=7.7)** at 5.8× density, 72% at 3.4×. **KDE succeeds exactly where raw density-ratio R failed**, because it integrates over the region instead of being dominated by tight noise blobs.
+
+**The settled detection picture (answers the original 2020 question):**
+
+| signal type | raw R | DBSCAN + Kulldorff LR | KDE peak |
+|---|---|---|---|
+| tight, high-density clump | ✅ | ✅ | ~ (needs small h) |
+| extended, moderate over-density | ❌ (z_R<0) | ✅ (size-weighted) | ✅ (integrates region) |
+
+So: **score with the Kulldorff LR and/or a KDE peak (never raw R), calibrate by MC at the small-cluster scale (the α≈7 heavy tail), and use RFT for the analytic look-elsewhere only when you deliberately work at a coarse, Gaussian scale.** KDE and LR are the two convergent workhorses; they agree on real signal and bracket the noise structure.
+
+---
+
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
 **Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.
