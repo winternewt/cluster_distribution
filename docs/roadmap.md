@@ -4,6 +4,14 @@
 
 ---
 
+## ⚡ Update (overnight `analytic-night`, see `analytic_findings.md`)
+
+Several items below are now partly or wholly resolved — read `docs/analytic_findings.md` first:
+- **§2 (eps-independent scorer): DONE.** The `R·eps²` collapse gives one master inverse-gamma(20.5); `analysis/scorer.py` ships a validated scorer. The eps-weighting debate is moot (no weights needed). Conservative envelope still available for comparison.
+- **§1 (Kulldorff LR): computed.** `analysis/scan_lr.py` shows the LR per cluster, quantifies look-elsewhere (~10⁸×), and confirms LR > raw R (size-weighting). Still TODO: calibrate **max-LR per field** via re-sim (needs T-style geometry run).
+- **§3 (censoring): deepened.** Confirmed `R_max=62.83` is the `min_area` artifact; the master shape's deep tail is also slightly heavier than the parametric fit. Tail work still blocked on relaxing `min_area`.
+- **New TODOs from tonight:** (a) check `k(n)≈3.5n−15` hull-area-shape law against Rényi–Sulanke / Efron stochastic-geometry results; (b) model the `eps^−0.205` residual = `P(N'=n)` broadening analytically; (c) re-fit the now-bug-fixed mixture code (4-vs-5 stride fixed) to see if non-degenerate mixtures appear (likely still single-component-sufficient); (d) calibrate the scorer on `LR` (better statistic) rather than `R`.
+
 ## The goal, restated precisely
 
 Produce a function `score(cluster, search_config) → {density_ratio, p_value, z_equiv, caveats}` that answers: *under CSR, how surprising is this detected cluster?* — honestly accounting for the fact that DBSCAN **selected** the region because it looked dense (post-selection / look-elsewhere). Everything below is in service of that.

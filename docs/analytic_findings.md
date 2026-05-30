@@ -1,6 +1,16 @@
 # Analytic Findings — overnight run (branch `analytic-night`)
 
-> **READ ME FIRST (updated last, at end of run):** _summary pending — see §0 when complete._
+> **READ ME FIRST.** There *is* a fundamental result beneath the Beta-Prime fit, and it's clean: **the eps-dependence factorizes into a pure power-law scale times an eps-invariant master shape, and that shape is derivable from elementary stochastic geometry.** Beta-Prime is just a convenient (non-identifiable) envelope, not fundamental. Concretely:
+>
+> 1. **Collapse (Finding #1).** `R(eps) = scale(eps)·X` with `scale ∝ eps^(−2.205)` and `X` eps-invariant to ~1% (q99/q50 CV 1.1%). Rescaling `R̃=R·eps²` cuts cross-eps quantile spread from 52% to ~5%. The `−2` is geometry (`S'∝eps²`); the `−0.205` is the only real second-order physics (fixed `min_samples` vs growing eps broadens `P(N')`).
+> 2. **Mechanism (Finding #2).** `R|N'=n = n/(λ₀S')` is *exactly* scaled-inverse-gamma with shape = the Gamma-shape of the hull area `S'|n`. The marginal is the N'-occupancy mixture of these; it reproduces the data as well as Beta-Prime. Beta-Prime params are **non-identifiable** (two basins both fit) — don't read mechanism from `b`.
+> 3. **First principles (Finding #3).** `S'|n` is just the convex-hull area of `n` uniform points in an eps-disk (CSR + Poisson conditioning); model matches data to ~1%, chaining adds 8%. The leading constant `C≈25` is derived with **no free parameters**: `C = N_min/f · k/(k−1)`, fill fraction `f≈0.42`, hull-shape `k≈20.5`.
+> 4. **Scorer (byproduct).** One master inverse-gamma(shape 20.5) on `R̃=R·eps²` gives a validated, eps-independent rare-event score — dissolving the eps-weighting ambiguity the old handoffs agonized over. `analysis/scorer.py`, `scorer_table.csv`.
+> 5. **Look-elsewhere (Finding #4).** A *typical* CSR cluster scores "~6σ" under naive per-window Kulldorff-LR/Wilks — overstated ~10⁸×. Only MC-replay calibrates (which the simdata is). LR beats raw `R` because it size-weights (equal-`R`, larger-`N'` clusters are rarer).
+>
+> **Two bugs fixed** (`analysis`-adjacent, separate commit): the mixture PDF-was-used-as-CDF KS, and a **4-vs-5 stride bug** in `betaprime_mixture_pdf` that almost certainly caused the repo's "degenerate identical-component mixture" results.
+>
+> **One-line upshot:** the whole problem reduces to *two* elementary objects — the convex-hull-area law of `n` uniform disk points, and the `N'`-occupancy distribution `P(N'=n)`; everything else (Beta-Prime, the eps-drift, the density ratio) is downstream.
 
 This is the running report of the analytic-first overnight session (see plan `~/.claude/plans/curried-moseying-flask.md`). Goal: find the fundamental structure beneath the empirical Beta-Prime fit. All work is read-only on `simdata/v2/`; new code in `analysis/`; small sims only.
 
@@ -9,7 +19,16 @@ Conventions: `N=10000`, `R=100`, `S₀=πR²=31415.93`, `λ₀=1/π=0.318310`, `
 ---
 
 ## 0. Headline summary
-_pending_
+See the **READ ME FIRST** box above. In one equation, the synthesis of Findings #1–#3:
+
+```
+S'|N'=n  ~  eps² · (convex-hull area of n uniform points in a unit disk)  ~  eps² · Gamma(k(n)≈3.5n−15)
+R|N'=n   =  n/(λ₀ S')                                                       ~  scaled-InverseGamma(k(n))   [exact]
+R        =  Σₙ P(N'=n) · (R|n)                                              [N'-mixture, mode n=10]
+meanR    ≈  (N_min/f)·(k/(k−1)) · eps⁻²  ≈  25·eps⁻²                        [f≈0.42 hull fill fraction]
+```
+
+Status: all planned workstreams (T1–T6) complete; results below. Artifacts in `analysis/`.
 
 ---
 

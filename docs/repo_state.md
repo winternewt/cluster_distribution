@@ -1,6 +1,6 @@
 # Repo State — Comprehensive Overview
 
-*Synthesised May 2026 by Claude (Opus 4.8) from a full read of the code, data, results, and the four prior handoff docs. This is the "what exists and what it means" document. Companion docs: [roadmap.md](roadmap.md) (where to go next) and [../CLAUDE.md](../CLAUDE.md) (working memory).*
+*Synthesised May 2026 by Claude (Opus 4.8) from a full read of the code, data, results, and the four prior handoff docs. This is the "what exists and what it means" document. Companion docs: [roadmap.md](roadmap.md) (where to go next), [../CLAUDE.md](../CLAUDE.md) (working memory), and [analytic_findings.md](analytic_findings.md) (**the overnight analytic results — the eps² collapse, the first-principles derivation of the distribution, and the demotion of Beta-Prime to a non-fundamental envelope; read this for the deeper "why"**).*
 
 ---
 
