@@ -116,5 +116,19 @@ Beta-Prime is merely the smooth phenomenological envelope of the `R|n` inverse-g
 ## Finding #4 — Kulldorff LR & selection quantification
 _pending (T5)_
 
-## Byproduct — eps-independent scorer
-_pending (T4)_
+## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
+
+**Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.
+
+Finding #1 makes the long-sought eps-independent score immediate. Map an observed cluster to the collapse variable and read one master survival curve:
+
+```
+R̃ = R_obs · eps²,    p(R_obs, eps) = SF_master(R̃),    z_equiv = Φ⁻¹(1 − p)
+```
+
+- **Master fit:** pooled `R̃` over eps∈[1.0,1.6] (n=430k) is fit by **inverse-gamma(shape=20.54, scale=473)**, KS=0.026 — and that shape **equals the mechanistic `k(10)≈20.5`** of Findings #2/#3. The scorer *is* the n=10 hull-area law. (Beta-Prime on `R̃` also works, KS=0.031, but adds nothing.)
+- **Validation (held-out eps 1.10/1.40/1.55):** scoring each through the single master gives near-uniform p-values — median p = 0.45/0.51/0.55 (target 0.5), frac(p<0.05) = 0.062/0.047/0.040 (target 0.05). One master curve calibrates every eps.
+- **It dissolves the eps-weighting problem.** The legacy per-eps approaches give *weighting-dependent* answers (at R=30, uniform-eps mixture p=1.3e-2 vs conservative envelope p=5.1e-2 — a 4× spread; the whole §17/§12.1 debate of the handoffs). The collapse scorer needs **no weighting choice**: there is one master shape, period.
+- **Tail caveat (use empirical SF in the deep tail).** The empirical master tail is slightly heavier than the inverse-gamma fit (at `R̃=38`, `z_emp=1.87` vs `z_ig=2.02`) because higher-`N'` mixture components and the eps^−0.205 residual fatten it. For conservative deep-tail p-values use the empirical survival in `scorer_table.csv`, not the parametric fit. And recall the hard censoring at `R̃ = 62.83·eps²` — the scorer is valid in the body and moderate tail only; true rare-event calibration past that needs the LR route (Finding #4) or relaxed `min_area`.
+
+`scorer_table.csv` columns: `R_tilde, R_at_eps1_1, R_at_eps1_3, p_empirical, p_invgamma, z_empirical, z_invgamma`.

@@ -1,0 +1,10 @@
+{
+  "collapse_variable": "R*eps^2",
+  "lambda0": 0.3183098861837907,
+  "invgamma_shape": 20.540440365846177,
+  "invgamma_loc": 0,
+  "invgamma_scale": 473.1449243054628,
+  "ks_invgamma": 0.026105336304895643,
+  "raw_R_cap": 62.83185307179586,
+  "note": "valid in body; censoring at R_tilde=62.83*eps^2"
+}
