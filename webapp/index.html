@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster-vs-Noise: live CSR demo</title>
+<style>
+  :root{--bg:#0e1116;--fg:#d8dee9;--mut:#8a93a3;--acc:#5ec8f7;--sig:#ffb454;--ok:#7ee787}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+  header{padding:14px 18px;border-bottom:1px solid #222a35}
+  h1{margin:0 0 4px;font-size:18px}
+  header p{margin:0;color:var(--mut);font-size:12.5px;max-width:980px}
+  .wrap{display:flex;flex-wrap:wrap;gap:16px;padding:16px}
+  .panel{background:#141a22;border:1px solid #222a35;border-radius:10px;padding:10px 12px}
+  .panel h2{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--acc)}
+  .panel small{color:var(--mut);font-size:11.5px}
+  canvas{display:block;background:#0a0d12;border-radius:6px}
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:10px 18px;border-top:1px solid #222a35;border-bottom:1px solid #222a35}
+  .controls label{color:var(--mut);font-size:12px;display:flex;align-items:center;gap:6px}
+  button{background:#1f6feb;color:#fff;border:0;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}
+  button.sec{background:#30363d}
+  input[type=range]{width:150px}
+  .stat{font-variant-numeric:tabular-nums}
+  b.v{color:var(--fg)}
+  footer{color:var(--mut);font-size:11.5px;padding:8px 18px 24px}
+  code{color:var(--sig)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Detecting clusters in Poisson noise — live demo</h1>
+  <p>Each frame draws <b id="Nlabel">N</b> uniform points in a disk (pure noise / complete spatial randomness), runs DBSCAN,
+  and measures every detected cluster's density ratio. <b>Left:</b> the field with detected clusters outlined.
+  <b>Middle:</b> the rescaled density ratio <code>R&middot;&epsilon;&sup2;</code> histogram converging to the predicted master curve
+  (inverse-gamma, shape&nbsp;&asymp;&nbsp;20.5 — the same curve at every&nbsp;&epsilon;, that's the collapse).
+  <b>Right:</b> each cluster scored through the null &rarr; its z-equivalent. A heavy-tailed statistic, once calibrated,
+  piles into a clean standard-normal bell (the probability-integral transform).</p>
+</header>
+
+<div class="controls">
+  <button id="toggle">⏸ Pause</button>
+  <button id="reset" class="sec">Reset histograms</button>
+  <label>&epsilon; (DBSCAN) <input type="range" id="eps" min="0.9" max="2.0" step="0.05" value="1.40"><span class="stat" id="epsv">1.40</span></label>
+  <label>speed <input type="range" id="speed" min="1" max="8" step="1" value="3"><span class="stat" id="spv">3</span> fields/tick</label>
+  <span class="stat" style="color:var(--mut)">fields <b class="v" id="nf">0</b> · clusters <b class="v" id="nc">0</b> · <b class="v" id="fps">0</b>/s</span>
+</div>
+
+<div class="wrap">
+  <div class="panel">
+    <h2>Noise field + detected clusters</h2>
+    <canvas id="field" width="360" height="360"></canvas>
+    <small>orange = points in a DBSCAN cluster; outline = convex hull (its area S&prime;)</small>
+  </div>
+  <div class="panel">
+    <h2>R&middot;&epsilon;&sup2; histogram vs predicted master</h2>
+    <canvas id="hr" width="380" height="360"></canvas>
+    <small>blue bars = live data · white line = inverse-gamma master (eps-invariant). KS&asymp;<span id="ks">–</span></small>
+  </div>
+  <div class="panel">
+    <h2>Cluster z-scores &rarr; standard normal</h2>
+    <canvas id="hz" width="380" height="360"></canvas>
+    <small>green bars = scored clusters · white line = N(0,1). Calibration turns heavy tails into &sigma;.</small>
+  </div>
+</div>
+
+<footer>
+  Static demo (pure JS, no server). Domain: N=10000, radius=100 (so &lambda;&#8320;=1/&pi;, &mu;<sub>&epsilon;</sub>=&epsilon;&sup2;), min_samples=min_cluster=10, no min_area.
+  Theory &amp; detector: <code>docs/analytic_findings.md</code>. &nbsp;Move the &epsilon; slider: raw R shifts, but R&middot;&epsilon;&sup2; keeps fitting the same master.
+</footer>
+
+<script src="master.js"></script>
+<script>
+"use strict";
+// ---------- constants ----------
+const N=10000, RADIUS=100, MINS=10, MINC=10, LAM0=N/(Math.PI*RADIUS*RADIUS);
+let EPS=1.40, fieldsPerTick=3, running=true;
+
+// ---------- math helpers ----------
+function normInv(p){ // Acklam's inverse normal CDF
+  if(p<=0) return -8; if(p>=1) return 8;
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const pl=0.02425;let q,r;
+  if(p<pl){q=Math.sqrt(-2*Math.log(p));return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+  if(p<=1-pl){q=p-0.5;r=q*q;return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);}
+  q=Math.sqrt(-2*Math.log(1-p));return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+}
+const normPdf=z=>Math.exp(-0.5*z*z)/Math.sqrt(2*Math.PI);
+function interp(xs,ys,x){ // xs ascending
+  if(x<=xs[0])return ys[0]; if(x>=xs[xs.length-1])return ys[ys.length-1];
+  let lo=0,hi=xs.length-1; while(hi-lo>1){const m=(lo+hi)>>1; if(xs[m]<=x)lo=m;else hi=m;}
+  const t=(x-xs[lo])/(xs[hi]-xs[lo]); return ys[lo]+t*(ys[hi]-ys[lo]);
+}
+
+// ---------- simulation ----------
+function genField(){
+  const xy=new Float64Array(2*N);
+  for(let i=0;i<N;i++){const r=RADIUS*Math.sqrt(Math.random()),t=2*Math.PI*Math.random();
+    xy[2*i]=r*Math.cos(t); xy[2*i+1]=r*Math.sin(t);}
+  return xy;
+}
+function dbscan(xy,eps){
+  const cs=eps, side=Math.ceil(2*RADIUS/cs)+2, off=RADIUS+cs;
+  const cell=i=>{const cx=Math.floor((xy[2*i]+off)/cs),cy=Math.floor((xy[2*i+1]+off)/cs);return cx*side+cy;};
+  const grid=new Map();
+  for(let i=0;i<N;i++){const k=cell(i); (grid.get(k)||grid.set(k,[]).get(k)).push(i);}
+  const e2=eps*eps;
+  function region(i){ // indices within eps of i (incl i)
+    const cx=Math.floor((xy[2*i]+off)/cs),cy=Math.floor((xy[2*i+1]+off)/cs),out=[];
+    const xi=xy[2*i],yi=xy[2*i+1];
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+      const arr=grid.get((cx+dx)*side+(cy+dy)); if(!arr)continue;
+      for(const j of arr){const ddx=xy[2*j]-xi,ddy=xy[2*j+1]-yi; if(ddx*ddx+ddy*ddy<=e2)out.push(j);}
+    } return out;
+  }
+  const lab=new Int32Array(N).fill(-2); let cid=0;
+  for(let i=0;i<N;i++){
+    if(lab[i]!==-2)continue;
+    const Ni=region(i);
+    if(Ni.length<MINS){lab[i]=-1;continue;}
+    lab[i]=cid; const q=[]; for(const j of Ni)if(j!==i)q.push(j);
+    while(q.length){const j=q.pop();
+      if(lab[j]===-1)lab[j]=cid;
+      if(lab[j]!==-2)continue;
+      lab[j]=cid; const Nj=region(j); if(Nj.length>=MINS)for(const k of Nj)q.push(k);
+    } cid++;
+  }
+  return {lab,cid};
+}
+function hullArea(pts){ // pts: [[x,y],...]; monotone chain + shoelace
+  if(pts.length<3)return {area:0,hull:[]};
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lo=[]; for(const q of p){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}
+  const up=[]; for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>=2&&cross(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}
+  const h=lo.slice(0,-1).concat(up.slice(0,-1));
+  let a=0; for(let i=0;i<h.length;i++){const j=(i+1)%h.length;a+=h[i][0]*h[j][1]-h[j][0]*h[i][1];}
+  return {area:Math.abs(a)/2,hull:h};
+}
+function analyze(xy,eps){
+  const {lab,cid}=dbscan(xy,eps);
+  const groups=Array.from({length:cid},()=>[]);
+  for(let i=0;i<N;i++) if(lab[i]>=0) groups[lab[i]].push(i);
+  const clusters=[];
+  for(const g of groups){
+    if(g.length<MINC)continue;
+    const pts=g.map(i=>[xy[2*i],xy[2*i+1]]);
+    const {area,hull}=hullArea(pts); if(area<=0)continue;
+    const R=(g.length/area)/LAM0, Rt=R*eps*eps;
+    let cx=0,cy=0; for(const p of pts){cx+=p[0];cy+=p[1];} cx/=pts.length;cy/=pts.length;
+    const sf=interp(MASTER.Rt,MASTER.sf,Rt), z=normInv(1-Math.min(Math.max(sf,1e-9),1-1e-9));
+    clusters.push({members:g,Rt,z,hull,cx,cy});
+  }
+  return {lab,clusters};
+}
+
+// ---------- histograms ----------
+const RT_MAX=80, RT_BW=1.0, RT_NB=Math.round(RT_MAX/RT_BW);
+const Z_LO=-4, Z_HI=6, Z_BW=0.25, Z_NB=Math.round((Z_HI-Z_LO)/Z_BW);
+let rtH=new Float64Array(RT_NB), zH=new Float64Array(Z_NB), nFields=0, nClusters=0;
+function resetHist(){rtH.fill(0);zH.fill(0);nFields=0;nClusters=0;}
+
+// ---------- drawing ----------
+const fc=document.getElementById('field').getContext('2d');
+const rc=document.getElementById('hr').getContext('2d');
+const zc=document.getElementById('hz').getContext('2d');
+function drawField(xy,res){
+  fc.clearRect(0,0,360,360); fc.fillStyle='#0a0d12'; fc.fillRect(0,0,360,360);
+  const sc=170/RADIUS, ctr=180, X=x=>ctr+x*sc, Y=y=>ctr-y*sc;
+  fc.strokeStyle='#222a35'; fc.beginPath(); fc.arc(ctr,ctr,170,0,2*Math.PI); fc.stroke();
+  // noise points (subsample for speed)
+  fc.fillStyle='#3a4757';
+  for(let i=0;i<N;i+=3){ if(res.lab[i]>=0)continue; fc.fillRect(X(xy[2*i]),Y(xy[2*i+1]),1,1); }
+  // cluster members + hulls
+  for(const c of res.clusters){
+    fc.fillStyle='#ffb454';
+    for(const i of c.members) fc.fillRect(X(xy[2*i])-1,Y(xy[2*i+1])-1,2,2);
+    fc.strokeStyle='rgba(255,180,84,.8)'; fc.beginPath();
+    c.hull.forEach((p,k)=>{const px=X(p[0]),py=Y(p[1]); k?fc.lineTo(px,py):fc.moveTo(px,py);});
+    fc.closePath(); fc.stroke();
+  }
+}
+function axis(ctx,w,h){ctx.strokeStyle='#2b3440';ctx.beginPath();ctx.moveTo(34,h-24);ctx.lineTo(w-6,h-24);ctx.moveTo(34,6);ctx.lineTo(34,h-24);ctx.stroke();}
+function drawHist(ctx,H,nb,bw,x0,xmax,col,curveX,curveY,curveLabel){
+  const w=380,h=360; ctx.clearRect(0,0,w,h); ctx.fillStyle='#0a0d12'; ctx.fillRect(0,0,w,h);
+  const tot=H.reduce((a,b)=>a+b,0); if(tot===0){axis(ctx,w,h);return;}
+  const plotW=w-40, plotH=h-30, bx=34, by=h-24;
+  // empirical density
+  let maxd=0; const dens=new Float64Array(nb);
+  for(let i=0;i<nb;i++){dens[i]=H[i]/(tot*bw); if(dens[i]>maxd)maxd=dens[i];}
+  // include curve max
+  let cmax=0; for(let i=0;i<curveY.length;i++){const cx=curveX[i]; if(cx>=x0&&cx<=xmax&&curveY[i]>cmax)cmax=curveY[i];}
+  const ymax=Math.max(maxd,cmax)*1.1;
+  const X=v=>bx+((v-x0)/(xmax-x0))*plotW, Y=d=>by-(d/ymax)*plotH;
+  ctx.fillStyle=col;
+  for(let i=0;i<nb;i++){const xa=X(x0+i*bw),xb=X(x0+(i+1)*bw); ctx.fillRect(xa,Y(dens[i]),Math.max(1,xb-xa-1),by-Y(dens[i]));}
+  // curve
+  ctx.strokeStyle='#eef2f7'; ctx.lineWidth=2; ctx.beginPath(); let started=false;
+  for(let i=0;i<curveX.length;i++){const cx=curveX[i]; if(cx<x0||cx>xmax)continue; const px=X(cx),py=Y(curveY[i]); started?ctx.lineTo(px,py):ctx.moveTo(px,py); started=true;}
+  ctx.stroke(); ctx.lineWidth=1;
+  axis(ctx,w,h);
+  ctx.fillStyle='#8a93a3'; ctx.font='11px system-ui';
+  ctx.fillText(curveLabel,bx+6,16);
+  for(let t=Math.ceil(x0);t<=xmax;t+= (xmax-x0>30?10:1)){const px=X(t); ctx.fillText(t,px-4,h-10);}
+}
+// KS between empirical R~ hist and master cdf (rough)
+function ksRt(){
+  const tot=rtH.reduce((a,b)=>a+b,0); if(tot<50)return null;
+  let cum=0,maxd=0;
+  for(let i=0;i<RT_NB;i++){cum+=rtH[i]/tot; const x=(i+1)*RT_BW; const mcdf=1-interp(MASTER.Rt,MASTER.sf,x); maxd=Math.max(maxd,Math.abs(cum-mcdf));}
+  return maxd;
+}
+
+// ---------- master curves for z panel (N(0,1)) ----------
+const ZX=[],ZY=[]; for(let z=Z_LO;z<=Z_HI;z+=0.1){ZX.push(z);ZY.push(normPdf(z));}
+
+// ---------- loop ----------
+let lastT=performance.now(), framesSince=0, fpsT=performance.now();
+function tick(){
+  if(running){
+    let lastRes=null,lastXY=null;
+    for(let f=0;f<fieldsPerTick;f++){
+      const xy=genField(); const res=analyze(xy,EPS); lastRes=res; lastXY=xy; nFields++;
+      for(const c of res.clusters){
+        nClusters++;
+        const bi=Math.floor(c.Rt/RT_BW); if(bi>=0&&bi<RT_NB)rtH[bi]++;
+        const zb=Math.floor((c.z-Z_LO)/Z_BW); if(zb>=0&&zb<Z_NB)zH[zb]++;
+      }
+      framesSince++;
+    }
+    if(lastRes)drawField(lastXY,lastRes);
+    drawHist(rc,rtH,RT_NB,RT_BW,0,RT_MAX,'#5ec8f7',MASTER.Rt,MASTER.pdf,'inverse-gamma master');
+    drawHist(zc,zH,Z_NB,Z_BW,Z_LO,Z_HI,'#7ee787',ZX,ZY,'N(0,1)');
+    document.getElementById('nf').textContent=nFields;
+    document.getElementById('nc').textContent=nClusters;
+    const ks=ksRt(); document.getElementById('ks').textContent=ks?ks.toFixed(3):'–';
+  }
+  const now=performance.now();
+  if(now-fpsT>500){document.getElementById('fps').textContent=Math.round(framesSince/((now-fpsT)/1000));framesSince=0;fpsT=now;}
+  requestAnimationFrame(tick);
+}
+
+// ---------- controls ----------
+document.getElementById('Nlabel').textContent=N.toLocaleString();
+document.getElementById('toggle').onclick=e=>{running=!running;e.target.textContent=running?'⏸ Pause':'▶ Run';};
+document.getElementById('reset').onclick=resetHist;
+document.getElementById('eps').oninput=e=>{EPS=+e.target.value;document.getElementById('epsv').textContent=EPS.toFixed(2);};
+document.getElementById('speed').oninput=e=>{fieldsPerTick=+e.target.value;document.getElementById('spv').textContent=fieldsPerTick;};
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
