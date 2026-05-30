@@ -4,7 +4,7 @@ import os
 import scipy.stats as stats
 import argparse
 from modules.simv2_data import load_data, sample_data
-from modules.beta_stats import betaprime_mixture_pdf, negative_log_likelihood, perform_linear_regression
+from modules.beta_stats import betaprime_mixture_pdf, betaprime_mixture_cdf, negative_log_likelihood, perform_linear_regression
 from modules.common_stats import compute_aic_bic, compute_ks_statistic
 from scipy.optimize import minimize
 
@@ -222,8 +222,8 @@ def main():
                     aic_mixture = 2 * k - 2 * log_likelihood_mixture
                     bic_mixture = k * np.log(n) - 2 * log_likelihood_mixture
 
-                    # Compute KS statistic
-                    cdf_fitted = lambda x_val: betaprime_mixture_pdf(x_val, mixture_params)
+                    # Compute KS statistic (use the mixture CDF, not the PDF)
+                    cdf_fitted = lambda x_val: betaprime_mixture_cdf(x_val, mixture_params)
                     ks_mixture, p_mixture = stats.kstest(ratio_sample, cdf_fitted)
 
                     print(f"\nMixture Fit for eps = {eps:.2f}:")

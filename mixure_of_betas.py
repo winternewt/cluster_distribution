@@ -178,8 +178,19 @@ def main():
                 'weight': weight
             })
 
-        # Compute goodness-of-fit statistics
-        log_likelihood = -negative_log_likelihood(fitted_params)
+        # Compute goodness-of-fit statistics.
+        # NOTE: the imported negative_log_likelihood expects the (5N-1) layout and the
+        # merged data; this script uses a (5N) weight layout, so compute the mixture
+        # log-likelihood directly over merged_sample (the data) instead.
+        def _mixture_pdf(x):
+            total = np.zeros_like(x, dtype=float)
+            for i in range(num_components):
+                idx = i * num_params_per_component
+                total += fitted_params[-num_components + i] * stats.betaprime.pdf(
+                    x, fitted_params[idx], fitted_params[idx + 1],
+                    loc=fitted_params[idx + 2], scale=fitted_params[idx + 3])
+            return total
+        log_likelihood = np.sum(np.log(_mixture_pdf(merged_sample) + 1e-12))
         k = len(fitted_params)
         n = len(merged_sample)
         aic = 2 * k - 2 * log_likelihood

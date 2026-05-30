@@ -32,10 +32,14 @@ def betaprime_mixture_pdf(x, params):
     if N < 1:
         raise ValueError("Number of components must be at least 1.")
 
-    # Extract component parameters
+    # Extract component parameters.
+    # NOTE: 4 params per component are packed CONTIGUOUSLY (a,b,loc,scale), the
+    # (N-1) mixing weights follow at index 4*N. The stride is therefore 4*i, NOT
+    # 5*i. (The original 5*i was a bug: it made component i>=1 read [b,loc,scale,w]
+    # as [a,b,loc,scale] — a likely cause of the degenerate mixture fits.)
     component_params = []
     for i in range(N):
-        idx = 5 * i
+        idx = 4 * i
         a = params[idx]
         b = params[idx + 1]
         loc = params[idx + 2]
@@ -67,6 +71,32 @@ def betaprime_mixture_pdf(x, params):
         pdf += alpha * stats.betaprime.pdf(x, comp['a'], comp['b'], loc=comp['loc'], scale=comp['scale'])
 
     return pdf
+
+
+def betaprime_mixture_cdf(x, params):
+    """Mixture CDF F(x) = sum_i w_i F_i(x) for the same param layout as
+    betaprime_mixture_pdf. Use THIS (never the PDF) as the cdf argument to
+    scipy.stats.kstest for mixtures."""
+    total_params = len(params)
+    if (total_params + 1) % 5 != 0:
+        raise ValueError("Incorrect number of parameters. It should satisfy 5*N - 1 = len(params).")
+    N = (total_params + 1) // 5
+
+    component_params = []
+    for i in range(N):
+        idx = 4 * i
+        component_params.append({'a': params[idx], 'b': params[idx + 1],
+                                 'loc': params[idx + 2], 'scale': params[idx + 3]})
+    if N == 1:
+        mixing_proportions = [1.0]
+    else:
+        mixing_params = np.asarray(params[4 * N:])
+        mixing_proportions = list(mixing_params) + [1.0 - np.sum(mixing_params)]
+
+    cdf = np.zeros_like(x, dtype=float)
+    for comp, alpha in zip(component_params, mixing_proportions):
+        cdf += alpha * stats.betaprime.cdf(x, comp['a'], comp['b'], loc=comp['loc'], scale=comp['scale'])
+    return cdf
 
 
 def negative_log_likelihood(params, data):

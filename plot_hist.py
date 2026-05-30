@@ -279,8 +279,9 @@ def plot_overlapping_histograms_with_fits(data_dict, eps_values):
             aic_mixture = 2 * k - 2 * log_likelihood_mixture
             bic_mixture = k * np.log(n) - 2 * log_likelihood_mixture
 
-            # Compute KS statistic
-            cdf_fitted = lambda x_val: betaprime_mixture_pdf(x_val, mixture_params)
+            # Compute KS statistic (mixture CDF = alpha*F1 + (1-alpha)*F2, NOT the PDF)
+            cdf_fitted = lambda x_val: (alpha * stats.betaprime.cdf(x_val, a1, b1, loc=loc1, scale=scale1)
+                                        + (1 - alpha) * stats.betaprime.cdf(x_val, a2, b2, loc=loc2, scale=scale2))
             ks_mixture, p_mixture = stats.kstest(density_ratio, cdf_fitted)
 
             print(f"Mixture Fit for eps = {eps:.2f}:")
