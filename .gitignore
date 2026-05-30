@@ -6,6 +6,7 @@ assets/sitemap.xml
 *.db
 .web
 *.py[cod]
+.python-version
 
 # Test failure artifacts
 data/sculpture_failures/

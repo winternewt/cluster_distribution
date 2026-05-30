@@ -1,0 +1,2 @@
+# Git LFS — large simulation datasets (~4.3 GB total, 207 files, ~20–44 MB each)
+simdata/v2/*.csv filter=lfs diff=lfs merge=lfs -text
