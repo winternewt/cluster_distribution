@@ -195,6 +195,35 @@ The null is leptokurtic but mildly (inverse-gamma shape 20.5: skew 0.98, **exces
 
 ---
 
+## Finding #6 — the deep tail without brute force (entropy = the LR rate function)
+
+**Script:** `analysis/tail_extrapolation.py`. Populating a `p=1e-9` bin by brute MC needs ~1e11 fields — hopeless. Three non-brute-force routes, all anchored by one fact:
+
+**`2lnLR` IS the large-deviations rate function (= entropy cost of the fluctuation).**
+For a window of area `S'` at density `ρ=n/S'`, `2lnLR = 2·S'·D(ρ‖λ₀)`, `D = ρln(ρ/λ₀) − (ρ−λ₀)` (Poisson relative entropy / KL). So `2lnLR = u` ⇔ `u/2` nats `= 0.721u` bits of improbability. **This is the entropy-deviation intuition, made exact** — the rarity of a condensation is literally its entropy cost, and the LR measures it.
+
+- **(1) Analytic LDT extrapolation (primary).** Because the cost is an entropy rate, the LR tail is **exponential** (log-survival linear in `u`), so fit it on the body (good stats to `p~1e-5` from ~10⁶ fields) and extrapolate. Demonstrated: fitting on a 6,600-cluster *small* sim and extrapolating predicts the full-data tail — and the empirical log-survival is **convex** (local slope steepens 0.21→0.34), so a single-slope fit **over-predicts the tail (≈16× at u=72) = conservative** (understates significance, the safe direction). Using the exact convex rate `D(ρ)` instead of a linear-in-`u` fit removes that bias. Either way: no deep-tail sims needed.
+- **(2) Importance sampling.** Tilt the point process so dense clusters are common, reweight by the likelihood ratio — unbiased, variance reduced by orders of magnitude. The route if you want *simulated* deep-tail validation.
+- **(3) GPD / peaks-over-threshold** for the `R` variable (polynomial tail); for `LR` the log-linear fit is simpler. Fit the tail index, extrapolate with a confidence band.
+
+**Entropy & per-field tail (extrapolated):**
+
+| 2lnLR | nats | bits | p / cluster | p / field | fields for ~10 events |
+|---|---|---|---|---|---|
+| 50 | 25 | 36 | 3e-2 | 4e-3 | 2.4e3 |
+| 63 (=min_area cap, N'=10) | 32 | 45 | 1e-3 | 1.6e-4 | 6e4 |
+| 80 | 40 | 58 | 2e-5 | 2e-6 | 4e6 |
+| 100 | 50 | 72 | 1e-7 | 1.5e-8 | 7e8 |
+
+**The PRNG "Diehard" horizon, quantified.** Your intuition that a PRNG eventually can't faithfully produce the tail is right, with two floors:
+- **Seed/state entropy (hard floor):** NumPy PCG64 has a 128-bit state → events rarer than `2^−128 ≈ 3e-39` (`2lnLR~177`, 128 bits) literally cannot be produced. **Non-binding.**
+- **Validation horizon (binding):** PCG64 is validated by BigCrush over ~`2^38–2^40` outputs. A campaign consuming that (`2N=2e4` draws/field → ~`1.4e7–5.5e7` fields) reaches `p_field ~ 1e-7–1e-8` (`2lnLR~90–100`). Beyond that you're using the PRNG **outside its validated envelope** — and it's the same depth where brute force dies. So compute-limit and PRNG-fidelity-limit coincide at `p~1e-7`.
+- **But the binding limit *right now* is the `min_area` censoring** (`2lnLR~63`, `p_field~1.6e-4`) — far shallower. Remove `min_area`, then the PRNG/compute horizon governs, and below `p~1e-8` you should switch to a **counter-based RNG (Philox/Threefry**, provable equidistribution, no period/correlation worry) plus routes (1)+(2).
+
+**Net:** the true tail is unbounded but exponentially thin (no hard "entropy bound" on length); the *practical* trustworthy horizon is `p~1e-7–1e-8`. Past it, don't brute-force — use the entropy/LDT rate (the LR itself) to extrapolate analytically, validated by importance sampling on a counter RNG.
+
+---
+
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
 **Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.
