@@ -163,6 +163,38 @@ So under naive per-window Wilks scoring, the **median** CSR cluster looks like a
 
 **Eps-stability:** median `2lnLR` drifts with CV ≈ 16% across eps — better than raw `R` (52%) but worse than the collapse variable `R·eps²` (4.5%), because larger eps lowers `R` but slightly raises `N'`, partially self-cancelling. So `R·eps²` remains the cleanest scoring coordinate; LR's advantage is the size-weighting, not eps-stability.
 
+## Finding #5 — back to the original question: the classifier, µ_eps, and formula reproduction
+
+Four follow-up experiments (`analysis/mu_eps_test.py`, `signal_injection.py`, `formula_vs_empirical.py`, and a moments calc) answer the practical "can we now build the z-classifier" question.
+
+### 5a. The real control variable is `µ_eps`, not `eps²` (N is not free)
+`R` depends on `N`, `R_dom`, `eps` **only** through `µ_eps = λ₀·π·eps² = (N/R_dom²)·eps²` (mean points per eps-disk) plus the integer `min_samples`. Three configs with λ₀ differing 4× but the same `µ_eps=1.44` (N=5000/10000/20000, eps=1.697/1.20/0.849) give matching `R` quantiles (median 16.25/16.60/16.03, bulk agreement ~3%). **The clean "eps²" is a coincidence of this config: `N=10⁴=R_dom²`, so `µ_eps=eps²` exactly.** The `−2.205` scale exponent is an *effective* local slope (→ −2 as eps→0); the `+0.205` is DBSCAN resolution drift (fixed `min_samples` vs eps), not a noise property.
+
+### 5b. The classifier works — but on LR, not raw R
+Injecting an extended Poisson splat (radius 5≈4·eps) into CSR and replaying the pipeline, scoring each recovered cluster against the CSR null:
+
+| n_extra | density ratio | detect % | med N' | med R | z_R | exceeds null in R | exceeds null in LR |
+|---|---|---|---|---|---|---|---|
+| 60 | 3.4× | 71% | 13 | 13.2 | −1.0 | 0% | 16% |
+| 120 | 5.8× | 100% | 58 | 8.3 | **−6.0** | 0% | **100%** |
+
+**Raw `R` actively fails for extended signal:** a strong splat forms a *large* cluster (N'=58) whose density ratio `R=8.3` is *below* the noise median (16.3), so `z_R=−6` — it looks *less* anomalous than a typical tight noise blob. The **Kulldorff LR succeeds**: 100% of strong-splat clusters exceed the entire null in LR while 0% do in R. This is the concrete payoff of Finding #4: DBSCAN noise clusters are tight minimal blobs (high R, small N'), so **signal must be scored by the size-weighted LR**, never by raw density ratio. The original 2020 question is answerable, and the right statistic is the scan LR calibrated by MC-replay.
+
+### 5c. The 4-number formula reproduces all 31 per-eps Beta-Prime fits
+Collapse prediction: `a,b = const`, `loc(eps)=loc₀/eps²`, `scale(eps)=scale₀/eps²` — **4 numbers replace 31×4=124**. Applied to each eps's data (`formula_vs_empirical.csv`):
+
+- **KS-on-data:** empirical per-eps (124 params) mean KS **0.0047**; 4-number formula Beta-Prime mean KS **0.0171** (max 0.032); 2-number inverse-gamma master mean KS **0.032** (max 0.057). All are excellent fits at n=10⁵ — the formula is ~3× the empirical KS but still KS<0.032 everywhere, tightest near mid-eps and loosening at the extremes (the `eps^−0.205` residual).
+- **Parameters:** `b_pred≈10.4` matches `b_emp≈10`; `loc_pred=loc₀/eps²` tracks `loc_emp` to ~10%; `a` and `scale` sit on a *different point of the non-identifiable ridge* (`a_pred≈82` const vs `a_emp` drifting 41→56) — cosmetic, since KS is the arbiter. **One master (4 numbers) + the eps² law reproduces the entire 124-number table.**
+
+### 5d. Does the z-equivalent carry error from leptokurtosis?
+The null is leptokurtic but mildly (inverse-gamma shape 20.5: skew 0.98, **excess kurtosis 1.90**, tail index ~21 → polynomial tail `S(x)~x^−21`). Key points:
+- **The transform `p→z=Φ⁻¹(1−p)` is exact (error-less) given the true CDF** — it's the probability integral transform, distribution-free. Heavy tails do *not* introduce error in the transform itself.
+- **The error lives entirely in *estimating* the null tail**, and that's where leptokurtosis bites: (i) MC sampling error on a tail `p` from `n` null samples has relative SE `√((1−p)/(np))` — e.g. at `p=1e-3` you need `n~1e6` for ±0.01 in z; with only ~344–812 null clusters (as in 5b) z is **hard-capped at ~3.0–3.2** (`Φ⁻¹(1−1/2n)`); (ii) beyond the censoring cap `R̃=62.83·eps²` there are *zero* null samples, so p is unknowable; (iii) a parametric fit can extrapolate but with bias — the empirical tail is heavier than the inverse-gamma fit.
+- **Knowing only the kurtosis is NOT enough for an exact transform** (you need the full CDF). A Cornish–Fisher expansion using skew+kurtosis is *approximate* — it lands within ~2% of the exact inverse-gamma quantile at `p=1e-2…1e-4` here, but residual error grows in the far tail. **The right lever the power law gives you is the tail index `α`:** fit a generalized Pareto to exceedances, extrapolate the `x^−α` tail with a *propagated confidence band* on z. That converts "unknown far tail" into "estimated tail with honest error bars."
+- **Bottom line:** report `z` (or `p`) with a confidence band from the tail-fit / MC binomial error, and never quote point-estimate sigmas past the censoring boundary. The z is a relabeling of a heavy-tailed `p`; its uncertainty is the tail-estimation uncertainty, not a flaw in the transform.
+
+---
+
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
 **Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.
