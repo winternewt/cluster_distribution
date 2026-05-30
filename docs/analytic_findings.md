@@ -271,6 +271,30 @@ So: **score with the Kulldorff LR and/or a KDE peak (never raw R), calibrate by 
 
 ---
 
+## Finding #9 — unified detector `score(points)→{detections,p,z}` + hybrid KDE calibration
+
+**Script:** `analysis/detector.py` (caches per-field nulls to `null_cache.npz`). Two complementary arms, each scored against the **per-field CSR null** so the look-elsewhere is built into `p` ("how often does pure CSR produce something this extreme *anywhere* in a field"):
+- **LR arm:** DBSCAN clusters → Kulldorff `2lnLR`; null = MC of per-field max-`2lnLR` + α≈7 tail extrapolation.
+- **KDE arm:** smoothed-intensity peak `Z_max` at fine (h=eps=1.2) and coarse (h=4) scales.
+
+**Hybrid KDE calibration (Task 2):** the coarse scale has 16 points/kernel (Gaussian regime) → calibrated by **RFT analytic** (no MC); the fine scale (1.4 pts/kernel, non-Gaussian) → **MC**. The detector auto-selects: `RFT if λ₀πh²≥10 else MC`. Crossover validated — at coarse h, RFT vs MC agree within ~2–5× (RFT conservative).
+
+**Demo (Task 1), per-field p/z:**
+
+| field | DBSCAN+LR | KDE-fine | KDE-coarse |
+|---|---|---|---|
+| pure noise | (none) | z=−0.8 | z=−0.6 |
+| **tight** clump (12 pts, r=1) | **z=3.5** @(−30,20) | **z=3.1** @(−30,20) | misses (blurred out) |
+| **extended** splat (120 pts, r=5) | **z=8.0** @(45,0) | **z=6.2** @(45,0) | **z=12** @(45,0) |
+
+Reads exactly as designed: silent on noise; tight clump caught by LR + fine-KDE (coarse blurs it away); extended splat caught by **all three** at the correct location — including the case where raw density-ratio R gave z=−6. Locations recovered to <2 units.
+
+**Caveats:** the RFT `z` in the deep tail (e.g. z=12 for the splat) is a *screening* number — RFT's Gaussian far-tail over-extrapolates for grossly non-null peaks; treat z≳6 from RFT as "very significant," not a calibrated value. For precise deep-tail p, use the MC+α≈7 LR arm. Per-field calibration assumes the same `N`, domain, eps/h as the null (re-calibrate otherwise; the Finding #1 `µ_eps` scaling tells you how to rescale).
+
+**This is the deliverable the project was after:** `score(points) → ranked detections with calibrated p, z, location, and method`, combining a tight-cluster arm (LR) and an extended-overdensity arm (KDE), with an analytic look-elsewhere where the field is Gaussian and MC/heavy-tail where it isn't.
+
+---
+
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
 **Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.

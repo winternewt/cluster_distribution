@@ -254,3 +254,4 @@ tmp/
 # Claude
 .claude/
 analysis/uncensored_eps1.20.csv
+analysis/null_cache.npz
