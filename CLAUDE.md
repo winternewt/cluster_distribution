@@ -7,7 +7,7 @@
 ## ⚡ Analytic breakthrough (branch `analytic-night`, see `docs/analytic_findings.md`)
 
 The "fundamental result beneath Beta-Prime" exists and is proven on the data:
-- **The eps-dependence factorizes:** `R(eps) = scale(eps)·X`, `scale ∝ eps^(−2.205)`, `X` eps-invariant to ~1%. Rescaling `R̃=R·eps²` collapses cross-eps spread 52%→5%. (`−2`=geometry `S'∝eps²`; `−0.205`=fixed-`min_samples` broadening of `P(N')`.)
+- **The eps-dependence factorizes:** `R(eps) = scale(eps)·X`, `scale ∝ eps^(−2.205)`, `X` eps-invariant to ~1%. Rescaling `R̃=R·eps²` collapses cross-eps spread 52%→5%. (`−2`=geometry `S'∝eps²`; `−0.205` residual = fixed-`min_samples` effect, ~44% N'-occupancy broadening + ~56% per-n area loosening.)
 - **Beta-Prime is derived & demoted:** `R|N'=n = n/(λ₀S')` is *exactly* scaled-inverse-gamma with shape = Gamma-shape of hull area `S'|n`. Marginal = N'-mixture of these (mode n=10), fits as well as Beta-Prime. **Beta-Prime params are non-identifiable** (two basins both fit KS~0.02) — never read mechanism off `b`. The robust quantity is hull-shape `k(10)≈20.5`.
 - **First-principles geometry:** `S'|n` = convex-hull area of `n` uniform points in an eps-disk (CSR+Poisson conditioning); matches data ~1%, chaining +8%. Leading constant **derived: `C = N_min/f·k/(k−1) ≈ 25`**, `f≈0.42` fill fraction, no free params.
 - **eps-independent scorer shipped:** master inverse-gamma(20.5) on `R̃`; validated near-uniform p-values; dissolves the eps-weighting debate. `analysis/scorer.py`, `scorer_table.csv`, `scorer_master.json`.
