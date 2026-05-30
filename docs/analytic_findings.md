@@ -113,8 +113,32 @@ meanR      ≈  (N_min/f)·(k/(k−1)) · eps⁻²  ≈  25·eps⁻²
 
 Beta-Prime is merely the smooth phenomenological envelope of the `R|n` inverse-gamma mixture; its parameters are non-identifiable and carry no extra physics. The eps-dependence is a pure `eps²` area scale (exact at fixed `n`) times a slow `eps^−0.205` correction from the `min_samples`-induced broadening of `P(N'=n)`. **The genuinely fundamental objects are just two: the convex-hull-area distribution of `n` uniform disk points, and the N'-occupancy distribution `P(N'=n)`.**
 
-## Finding #4 — Kulldorff LR & selection quantification
-_pending (T5)_
+## Finding #4 — Kulldorff LR: the look-elsewhere effect, quantified
+
+**Script:** `analysis/scan_lr.py` → `scan_lr_summary.csv`, `scan_lr.png`.
+
+The design doc says score with the Kulldorff scan LR, not raw `R`. The LR is computable from the existing data, and `n/μ = N'/(λ₀S') = R` exactly, so
+
+```
+2 lnLR = 2[ N'·ln(N'/μ) + (N−N')·ln((N−N')/(N−μ)) ]  ≈  2·N'·(ln R − 1 + 1/R)
+```
+
+(the approximation is exact to **0.02%** here, since `N≫N'` and `μ=λ₀S'≈0.5`).
+
+**The look-elsewhere effect, in hard numbers.** A *typical* (median) noise cluster has:
+
+| eps | median 2lnLR | median R | naive Wilks p | naive "σ" |
+|---|---|---|---|---|
+| 1.00 | 45.3 | 23.9 | 1.7e-11 | 6.7 |
+| 1.20 | 38.4 | 16.2 | 5.8e-10 | 6.2 |
+| 1.40 | 32.7 | 11.7 | 1.1e-08 | 5.7 |
+| 1.60 | 28.0 | 8.7 | 1.2e-07 | 5.3 |
+
+So under naive per-window Wilks scoring, the **median** CSR cluster looks like a **5.3–6.7σ detection** — and these appear in essentially every random field. Naive scoring overstates significance by **~10⁸×**. This is the selection bias of §1 of the theory doc made concrete, *compounded* by the small-`μ` (≈0.5) breakdown of the χ²₁ asymptotic. The only valid calibration is MC-replay of the pipeline — which the simdata **is**, in `R`-space (Findings #1–#4). The practical takeaway: score with the empirical master survival (T4), never with a per-window analytic p-value.
+
+**LR is a better statistic than raw `R` (validates the design doc).** `R` and `2lnLR` correlate (Spearman 0.71) but are not equivalent: at fixed `R≈20`, `2lnLR` ranges **40→58.6 as `N'` goes 10→14**. Two clusters with the *same density ratio* are **not** equally significant — the one with more points is rarer under CSR, and only LR captures that. So a future scorer should ideally calibrate on `LR` (via the same MC-replay), gaining the size-weighting `R` lacks.
+
+**Eps-stability:** median `2lnLR` drifts with CV ≈ 16% across eps — better than raw `R` (52%) but worse than the collapse variable `R·eps²` (4.5%), because larger eps lowers `R` but slightly raises `N'`, partially self-cancelling. So `R·eps²` remains the cleanest scoring coordinate; LR's advantage is the size-weighting, not eps-stability.
 
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
