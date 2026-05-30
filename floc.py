@@ -81,8 +81,8 @@ def main():
     # Eps values to include in the analysis (from 1.10 to 1.40 in steps of 0.05)
     eps_values = np.arange(1.10, 1.42, 0.01).round(2)
     # floc values from 4.0 to 6.4 in steps of 0.1
-    slope=-9.71
-    inter=17.1674
+    slope=-9.2934
+    inter=16.7386
 #    r2=0.9945
 #    RMSE=0.0667
 #    floc_values = np.arange(4.0, 6.5, 0.1).round(1)
@@ -100,12 +100,14 @@ def main():
 
     # Loop over each eps value
     for eps_value in eps_values:
+        if eps_value in [1.40,1.39, 1.32, 1.24, 1.21, 1.20]:
+            continue
         print(f"\nProcessing eps = {eps_value:.2f}")
         df_valid, ratio_data = load_data(eps_value, data_dir, N, radius)
         if ratio_data is None:
             continue
         floc_est=slope*eps_value+inter
-        floc_values = np.arange(floc_est - 0.12, floc_est + 0.12, 0.005).round(3)
+        floc_values = np.arange(floc_est - 1, floc_est + 1, 0.5).round(2)
         # For computational efficiency, sample the data
         sample_size = min(100000, len(ratio_data))  # Use up to 100,000 data points
         np.random.seed(42)
