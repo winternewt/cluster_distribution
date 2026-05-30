@@ -224,6 +224,27 @@ For a window of area `S'` at density `ρ=n/S'`, `2lnLR = 2·S'·D(ρ‖λ₀)`, 
 
 ---
 
+## Finding #7 — the tail is an *integrable* singularity; the censorship is removable
+
+The `R→∞` as hull-area `S'→0` blow-up is a genuine **ultraviolet divergence** (defining a density from δ-points is ill-posed at short distance — the bandwidth problem / UV problem). But it is **integrable**, so the `min_area` censorship is unnecessary, not a true regularization.
+
+**The tail is a power law, index measured three ways (`analysis/tail_*.py`):**
+- empirical `R|N'=10` log-log slope (censored window): **α≈7.7**
+- convex-hull small-area geometry exponent (uncensored, no DBSCAN): **α≈7.0** (rising to ~11 by n=16; trend ≈ `n−1`)
+- (the inverse-gamma body shape k≈20 is the tail of the *body fit*, NOT the true tail — it badly under-states rare events; and a GPD on the censored 2lnLR gives a spurious `ξ<0` finite endpoint. Both wrong.)
+
+**Consequences (the resolution of the whole tail/censorship problem):**
+1. Since **α≈7 > 2**, the distribution of `R` is **proper and has finite mean/variance/… up to ~6th moment**. The "infinite spike" is an integrable measure-zero set. `min_area` only clips `p<1.6e-4`; **set `min_area→0` and the statistics are fine** — the cutoff→0 limit exists (UV-finite / "super-renormalizable").
+2. **The real regularizer is the count threshold** `min_samples=min_cluster_size=10`, which sets `α≈n−1`. `N'=3` (collinear triangle) gives `α≈2` → divergent mean: that is the true "fall-to-center" singularity (cf. the `1/r²` potential in QM); `N'≥10` (`α≈9`) sits safely in the integrable regime (cf. integrable `1/r`).
+3. **It's literally RG:** Finding #1's `R∝eps^(−2.205)` = engineering dimension −2 (area) + anomalous dimension −0.205 from the marginal fixed-`min_samples` coupling. eps is the cutoff/resolution scale.
+4. **Cellular re-representations remove the singularity at the source** by replacing the adaptive hull denominator with a fixed scale or count floor: fixed **grid** (= the project's original coarse method; also *restores* clean look-elsewhere = exactly K independent cells), **Voronoi/Delaunay (DTFE)** (data-adaptive, **analytic CSR cell-area null** — the elegant choice, with direct precedent in cosmology void/cluster finders ZOBOV/VOBOZ), **k-NN density** (= DBSCAN core-distance), or **KDE** (bandwidth = the scale). All encode the same regularization: a scale *or* a count floor.
+
+**Uncensored deep-tail estimate (geometry-α power law, `tail_final.py`):** `z(2lnLR=100)≈6.25`, `z(110)≈6.8`, `z(120)≈7.3` (with ±0.5-in-α bands). This is **far heavier than the inverse-gamma/GPD fits** (which gave z~7.8–9 at u=100) — i.e. **extreme clusters are *less* rare than light-tailed fits claim; do not over-call significance.** Caveat: anchoring the asymptotic α early under-predicts the moderate tail by ~2× (validation ratio 0.4–0.6), so the absolute normalization is uncertain; the index is robust.
+
+**The one cheap sim worth running:** rerun with `min_area=0` (uncensored), ~1e6 fields — directly observes the full `R` tail to `p~1e-5`, pinning **both** index and normalization, validated by the geometry α≈7. This resolves the bracket without any deep-tail brute force. (Brute-forcing to `p~1e-9` is ~1e10 fields ≈ a week on 6×A100 — and lands at the PCG64 validation horizon anyway; not worth it. Extrapolate instead.)
+
+---
+
 ## Byproduct — eps-independent scorer (the old "hard problem", now trivial)
 
 **Script:** `analysis/scorer.py` → `scorer_table.csv`, `scorer_master.json`, `scorer_survival.png`.
