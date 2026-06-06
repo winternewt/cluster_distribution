@@ -19,6 +19,7 @@ Everything is dimensionless (radius 1); multiply areas by eps^2 to compare to da
 Cheap: no large sim, ~5e4 hull computations per n. Writes CSV + plot to analysis/.
 """
 import os
+import sys
 import numpy as np
 from numpy.random import default_rng
 from scipy.spatial import ConvexHull
@@ -27,6 +28,9 @@ from sklearn.cluster import DBSCAN
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 OUT = os.path.dirname(__file__)
 N_FULL, RAD = 10000, 100
@@ -62,12 +66,11 @@ def mc_model(kind, n, trials=50000):
 
 def real_data_ref():
     """<S'|n>/eps^2 and k(n) from real data at eps=1.20 (representative)."""
-    import pandas as pd
     eps = 1.20
-    df = pd.read_csv(os.path.join(OUT, "..", "simdata", "v2",
-                                  f"simulation_data_N{N_FULL}_radius{RAD}_eps{eps:.2f}.csv"))
-    d = df[(df.S_prime != -1) & (df.N_prime != -1)]
+    d = load_raw_df(eps)
     out = {}
+    if d is None:
+        return out
     for n in range(10, 16):
         s = d[d.N_prime == n].S_prime.values / eps ** 2
         if len(s) > 500:

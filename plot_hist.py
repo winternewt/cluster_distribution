@@ -14,33 +14,18 @@ SLOPE = -9.71
 INTERCEPT = 17.1674
 
 def load_data(eps_values, data_dir, N, radius):
-    """
-    Load simulation data for specified epsilon values.
+    """Load simulation data for specified epsilon values.
 
-    Parameters:
-    - eps_values: List or array of epsilon values.
-    - data_dir: Directory where data files are stored.
-    - N: Number of points in the simulation.
-    - radius: Radius of the circular area.
-
-    Returns:
-    - data_dict: Dictionary with epsilon as keys and corresponding DataFrames as values.
+    Returns dict with epsilon as keys and DataFrames as values.
+    Data is read from local parquet / HuggingFace as needed.
     """
+    from modules.simv2_data import load_raw_df
     data_dict = {}
-    lambda0 = N / (np.pi * radius**2)  # Initial point density
+    lambda0 = N / (np.pi * radius**2)
     for eps in eps_values:
-        data_file = os.path.join(data_dir, f'simulation_data_N{N}_radius{radius}_eps{eps:.2f}.csv')
-        if not os.path.exists(data_file):
-            print(f"Data file {data_file} not found. Skipping eps = {eps:.2f}")
+        df_valid = load_raw_df(eps, int(N), int(radius), data_dir)
+        if df_valid is None:
             continue
-        # Load the data
-        df = pd.read_csv(data_file)
-        # Filter valid clusters
-        df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
-        if df_valid.empty or len(df_valid) < 2000:
-            print(f"Not enough valid clusters for eps = {eps:.2f}. Skipping.")
-            continue
-        # Compute lambda_prime and density ratio
         df_valid['lambda_prime'] = df_valid['N_prime'] / df_valid['S_prime']
         df_valid['density_ratio'] = df_valid['lambda_prime'] / lambda0
         data_dict[eps] = df_valid

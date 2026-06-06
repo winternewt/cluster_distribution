@@ -17,10 +17,13 @@ polynomial tail R^-k(n). So:
 Reports brute-force (ground truth, censored), GPD (censored lower bound), and the
 inverse-gamma mixture (uncensored, recommended), with z and 90% CI. eps=1.20.
 """
-import os, numpy as np, pandas as pd
+import os, sys, numpy as np, pandas as pd
 from numpy.random import default_rng
 from scipy import stats, optimize
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 HERE=os.path.dirname(__file__); N,RAD,EPS=10000,100,1.20; LAM0=N/(np.pi*RAD**2)
 rng=default_rng(2718)
@@ -38,8 +41,9 @@ def Rstar(u,n):
     return optimize.brentq(f,1.0001,hi)
 
 def load():
-    df=pd.read_csv(os.path.join(HERE,"..","simdata","v2",f"simulation_data_N{N}_radius{RAD}_eps{EPS:.2f}.csv"))
-    d=df[(df.S_prime!=-1)&(df.N_prime!=-1)]
+    d=load_raw_df(EPS)
+    if d is None:
+        return None, None
     n=d.N_prime.values.astype(int); S=d.S_prime.values; R=(n/S)/LAM0
     return n,R
 
@@ -76,6 +80,8 @@ def z_of(p): return stats.norm.isf(np.clip(p,1e-300,1-1e-12))
 
 def main():
     nv,Rv=load()
+    if nv is None:
+        print("data unavailable"); return
     Lv=twolnLR(nv.astype(float),Rv)
     print(f"eps={EPS}: {len(nv)} clusters; max 2lnLR={Lv.max():.1f}")
     occ,fits=fit_per_n(nv,Rv)

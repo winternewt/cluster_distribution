@@ -9,21 +9,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def load_data(eps_values, data_dir, N, radius):
-    # Load data for all eps values
+    from modules.simv2_data import load_raw_df
     data_dict = {}
     for eps in eps_values:
-        data_file = os.path.join(data_dir, f'simulation_data_N{N}_radius{radius}_eps{eps:.2f}.csv')
-        if not os.path.exists(data_file):
-            print(f"Data file {data_file} not found. Skipping eps = {eps:.2f}")
+        df_valid = load_raw_df(eps, int(N), int(radius), data_dir)
+        if df_valid is None:
             continue
-        # Load the data
-        df = pd.read_csv(data_file)
-        # Filter valid clusters
-        df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
-        if df_valid.empty:
-            print(f"No valid clusters found for eps = {eps:.2f}.")
-            continue
-        # Compute lambda_prime and ratio
         df_valid['lambda_prime'] = df_valid['N_prime'] / df_valid['S_prime']
         data_dict[eps] = df_valid
         print(f"Data loaded for eps = {eps:.2f}, total clusters: {len(df_valid)}")

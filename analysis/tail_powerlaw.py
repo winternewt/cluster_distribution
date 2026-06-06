@@ -13,9 +13,12 @@ Method (per count n, anchored to data, extrapolates PAST the min_area censoring)
   3. marginal  P(2lnLR>u) = sum_n P(N'=n) * P(R > R*(u,n) | n);
   4. Hill SE alpha/sqrt(k) -> confidence band.
 """
-import os, numpy as np, pandas as pd
+import os, sys, numpy as np, pandas as pd
 from scipy import stats, optimize
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 HERE=os.path.dirname(__file__); N,RAD,EPS=10000,100,1.20; LAM0=N/(np.pi*RAD**2)
 CAP=lambda n: n/(0.5*LAM0)
@@ -28,8 +31,9 @@ def Rstar(u,n):
     return 1.0001 if f(1.0001)>0 else optimize.brentq(f,1.0001,1e7)
 
 def load():
-    df=pd.read_csv(os.path.join(HERE,"..","simdata","v2",f"simulation_data_N{N}_radius{RAD}_eps{EPS:.2f}.csv"))
-    d=df[(df.S_prime!=-1)&(df.N_prime!=-1)]
+    d=load_raw_df(EPS)
+    if d is None:
+        return None, None
     n=d.N_prime.values.astype(int); R=(n/(d.S_prime.values))/LAM0
     return n,R
 
@@ -66,7 +70,10 @@ def marg(u,occ,pl,dalpha=0.0):
 def z_of(p): return stats.norm.isf(np.clip(p,1e-300,1-1e-12))
 
 def main():
-    nv,Rv=load(); Lv=twolnLR(nv.astype(float),Rv)
+    nv,Rv=load()
+    if nv is None:
+        print("data unavailable"); return
+    Lv=twolnLR(nv.astype(float),Rv)
     occ,pl=hill_per_n(nv,Rv)
     print(f"eps={EPS}: {len(nv)} clusters; max 2lnLR={Lv.max():.1f}")
     print("per-N' power-law tail (Hill):")

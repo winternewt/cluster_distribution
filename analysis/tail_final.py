@@ -13,11 +13,14 @@ Resolution of the earlier iterations:
 For each n: P(R>r|n) = Pu_n * (r/u_n)^(-alpha_n),  alpha_n from geometry,  Pu_n,u_n from data body.
 Marginal P(2lnLR>u) = sum_n P(N'=n) P(R>R*(u,n)|n).
 """
-import os, numpy as np, pandas as pd
+import os, sys, numpy as np, pandas as pd
 from numpy.random import default_rng
 from scipy import stats, optimize
 from scipy.spatial import ConvexHull
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 HERE=os.path.dirname(__file__); N,RAD,EPS=10000,100,1.20; LAM0=N/(np.pi*RAD**2)
 CAP=lambda n: n/(0.5*LAM0); rng=default_rng(99)
@@ -38,12 +41,17 @@ def geom_alpha(n,M=300000):
     return float(np.polyfit(np.log(lo[lo>0]),np.log(cdf[lo>0]),1)[0])
 
 def load():
-    df=pd.read_csv(os.path.join(HERE,"..","simdata","v2",f"simulation_data_N{N}_radius{RAD}_eps{EPS:.2f}.csv"))
-    d=df[(df.S_prime!=-1)&(df.N_prime!=-1)]; n=d.N_prime.values.astype(int)
+    d=load_raw_df(EPS)
+    if d is None:
+        return None, None
+    n=d.N_prime.values.astype(int)
     return n,(n/(d.S_prime.values))/LAM0
 
 def main():
-    nv,Rv=load(); Lv=twolnLR(nv.astype(float),Rv)
+    nv,Rv=load()
+    if nv is None:
+        print("data unavailable"); return
+    Lv=twolnLR(nv.astype(float),Rv)
     occ={}; pl={}
     print("measuring geometry tail index alpha(n) (uncensored, no DBSCAN):")
     for n in range(10,17):

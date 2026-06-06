@@ -12,25 +12,24 @@ If this reproduces the observed C(eps) drift, the residual is entirely occupancy
 not geometry. Read-only; prints a comparison table.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 HERE = os.path.dirname(__file__)
-DATA = os.path.join(HERE, "..", "simdata", "v2")
 N, RAD = 10000, 100
 LAM0 = N / (np.pi * RAD ** 2)
-
-
-def load(eps):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    df = pd.read_csv(f)
-    return df[(df.S_prime != -1) & (df.N_prime != -1)]
 
 
 def main():
     # 1) measure the eps-INVARIANT per-n contribution m(n) = E[ n/(lambda0*u) | n ]
     #    = E[ R*eps^2 | n ], from a reference eps (use 1.20, plenty of data per n).
-    ref = load(1.20)
+    ref = load_raw_df(1.20)
+    if ref is None:
+        print("reference data at eps=1.20 unavailable"); return
     ref = ref.assign(Rt=(ref.N_prime / ref.S_prime) / LAM0 * 1.20 ** 2)
     m = {}                       # n -> mean R_tilde given n  (eps-invariant building block)
     for n in range(10, 26):
@@ -44,7 +43,9 @@ def main():
     print("\n eps   observed C   predicted C (occupancy x fixed m(n))   rel.err")
     rows = []
     for eps in np.round(np.arange(1.00, 1.61, 0.10), 2):
-        d = load(eps)
+        d = load_raw_df(eps)
+        if d is None:
+            continue
         Rt = (d.N_prime / d.S_prime) / LAM0 * eps ** 2
         C_obs = Rt.mean()
         vc = d.N_prime.value_counts()

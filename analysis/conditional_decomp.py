@@ -12,6 +12,7 @@ Mechanism hypothesis:
 Read-only on simdata/v2. Writes CSV + plot to analysis/.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -19,23 +20,21 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-DATA = os.path.join(os.path.dirname(__file__), "..", "simdata", "v2")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 OUT = os.path.dirname(__file__)
 N, RAD = 10000, 100
 LAM0 = N / (np.pi * RAD ** 2)
 
 
-def load(eps):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    df = pd.read_csv(f)
-    d = df[(df.S_prime != -1) & (df.N_prime != -1)].copy()
-    d["R"] = (d.N_prime / d.S_prime) / LAM0
-    return d
-
-
 def main():
     for eps in (1.00, 1.20, 1.40):
-        d = load(eps)
+        d = load_raw_df(eps)
+        if d is None:
+            continue
+        d = d.copy()
+        d["R"] = (d.N_prime / d.S_prime) / LAM0
         print(f"\n================ eps = {eps:.2f}   (n_clusters={len(d)}) ================")
         # marginal Beta-Prime fit for reference (free loc)
         bp = stats.betaprime.fit(d.R.values)

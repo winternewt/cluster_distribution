@@ -20,22 +20,23 @@ Compares THREE predictors against empirical per-eps fits, on each eps's actual d
   (G) formula inverse-gamma master (mechanism): shape, scale/eps^2   -- 2 params
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 HERE = os.path.dirname(__file__)
-DATA = os.path.join(HERE, "..", "simdata", "v2")
 RES = os.path.join(HERE, "..", "results")
 N, RAD = 10000, 100
 LAM0 = N / (np.pi * RAD ** 2)
 
 def load_sample(eps, size=100000, seed=42):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    if not os.path.exists(f):
+    d = load_raw_df(eps)
+    if d is None:
         return None
-    d = pd.read_csv(f)
-    d = d[(d.S_prime != -1) & (d.N_prime != -1)]
     R = (d.N_prime.values / d.S_prime.values) / LAM0
     if len(R) < 2000:
         return None

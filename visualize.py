@@ -5,30 +5,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 import statsmodels.api as sm
+from modules.simv2_data import load_raw_df
 
 
 def load_and_aggregate_data(eps_values, data_dir, lambda0):
-    # Dictionary to store data for each eps
     data_dict = {}
-
     for eps in eps_values:
-        data_file = os.path.join(data_dir, f'simulation_data_N10000_radius100_eps{eps:.2f}.csv')
-        if not os.path.exists(data_file):
-            print(f"Data file {data_file} not found. Skipping eps = {eps:.2f}")
+        df_valid = load_raw_df(eps, data_dir=data_dir)
+        if df_valid is None:
             continue
-
-        # Load the data
-        df = pd.read_csv(data_file)
-        # Filter valid clusters
-        df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
-        if df_valid.empty:
-            continue
-        # Compute lambda_prime and ratio
         df_valid['lambda_prime'] = df_valid['N_prime'] / df_valid['S_prime']
         df_valid['ratio'] = df_valid['lambda_prime'] / lambda0
-        # Store the ratio data
         data_dict[eps] = df_valid['ratio'].values
-
     return data_dict
 
 

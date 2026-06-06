@@ -19,7 +19,7 @@ We build SF_master four ways and compare:
 Read-only on simdata/v2 and results/. Writes scorer_table.csv + plots + a small JSON
 of the master fit to analysis/.
 """
-import os, json
+import os, json, sys
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -27,20 +27,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 HERE = os.path.dirname(__file__)
-DATA = os.path.join(HERE, "..", "simdata", "v2")
 RES = os.path.join(HERE, "..", "results")
 N, RAD = 10000, 100
 LAM0 = N / (np.pi * RAD ** 2)
 RCAP = 10 / (0.5 * LAM0)          # 62.83 raw-R cap
 
 def load_R(eps, cap=50000, seed=0):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    if not os.path.exists(f):
-        return None
-    df = pd.read_csv(f)
-    d = df[(df.S_prime != -1) & (df.N_prime != -1)]
-    if len(d) < 2000:
+    d = load_raw_df(eps)
+    if d is None:
         return None
     R = (d.N_prime.values / d.S_prime.values) / LAM0
     if len(R) > cap:

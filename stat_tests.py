@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 import statsmodels.api as sm
+from modules.simv2_data import load_raw_df
 
 # Function to perform normality tests on a continuous variable
 def perform_normality_tests(data_sample):
@@ -65,18 +66,8 @@ def analyze_eps_values(eps_values, data_dir, lambda0, S0, min_cluster_size, subs
 
         for idx, eps in enumerate(batch_eps):
             print(f"\nAnalyzing eps = {eps:.2f}")
-            data_file = os.path.join(data_dir, f'simulation_data_N10000_radius100_eps{eps:.2f}.csv')
-            if not os.path.exists(data_file):
-                print(f"Data file {data_file} not found. Skipping eps = {eps:.2f}")
-                continue
-
-            # Load the data
-            df = pd.read_csv(data_file)
-
-            # Filter valid clusters
-            df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
-
-            if df_valid.empty:
+            df_valid = load_raw_df(eps, data_dir=data_dir)
+            if df_valid is None:
                 print(f"No valid clusters found for eps = {eps:.2f}.")
                 continue
 

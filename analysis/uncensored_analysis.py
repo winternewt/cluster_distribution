@@ -3,9 +3,12 @@
 and quantify how little the min_area censorship actually mattered. Reproducible from
 analysis/uncensored_eps1.20.csv (regenerate via uncensored_sim.py). Writes a small
 summary CSV + plot (the 20MB raw csv is gitignored)."""
-import os, numpy as np, pandas as pd
+import os, sys, numpy as np, pandas as pd
 from scipy import stats
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 HERE=os.path.dirname(__file__); N,RAD=10000,100; LAM0=N/(np.pi*RAD**2); RCAP=10/(0.5*LAM0)
 def lr(n,S): mu=LAM0*S; return 2*(n*np.log(n/mu)+(N-n)*np.log((N-n)/(N-mu)))
@@ -17,9 +20,16 @@ def load(path):
 
 def main():
     nu,Ru,Lu=load(os.path.join(HERE,"uncensored_eps1.20.csv"))
-    _,Rc,Lc=load(os.path.join(HERE,"..","simdata","v2","simulation_data_N10000_radius100_eps1.20.csv"))
+    dc=load_raw_df(1.20)
+    if dc is None:
+        Rc=np.array([]); Lc=np.array([])
+    else:
+        nc=dc.N_prime.values.astype(float); Sc=dc.S_prime.values
+        Rc=(nc/Sc)/LAM0; Lc=lr(nc,Sc)
+    _=None  # keep variable for compatibility
     print(f"uncensored {len(Ru)} clusters, max R={Ru.max():.1f}, max 2lnLR={Lu.max():.1f}")
-    print(f"censored   {len(Rc)} clusters, max R={Rc.max():.1f} (cap {RCAP:.1f})")
+    rc_max = Rc.max() if len(Rc) > 0 else float('nan')
+    print(f"censored   {len(Rc)} clusters, max R={rc_max:.1f} (cap {RCAP:.1f})")
     print(f"censorship impact: {np.mean(Ru>RCAP)*100:.4f}% of clusters beyond cap ({int(np.sum(Ru>RCAP))} clusters)")
     print("  => min_area pins the MAX at the cap but removes negligible mass; tail shape is real.\n")
 

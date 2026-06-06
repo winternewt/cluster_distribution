@@ -13,7 +13,11 @@ Demonstrations:
   2. entropy (bits) at each tail depth;
   3. PRNG floors: seed-entropy (PCG64 128-bit) vs BigCrush-validation horizon.
 """
+import os, sys
 import numpy as np, pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/..")
+from modules.simv2_data import load_raw_df
 
 N, RAD = 10000, 100
 LAM0 = N/(np.pi*RAD**2)
@@ -24,9 +28,10 @@ def lr(d):
     return 2*(n*np.log(n/mu) + (N-n)*np.log((N-n)/(N-mu)))
 
 def main():
-    df = pd.read_csv('simdata/v2/simulation_data_N10000_radius100_eps1.20.csv')
-    niter = int(df['iteration'].max())
-    d = df[(df.S_prime!=-1)&(df.N_prime!=-1)]
+    d = load_raw_df(1.20)
+    if d is None:
+        print("data unavailable"); return
+    niter = int(d['iteration'].max())
     L_full = lr(d)
     cpf = len(d)/niter
     print(f"FULL data: {len(d)} clusters from {niter} fields ({cpf:.3f}/field); max 2lnLR={L_full.max():.1f}")

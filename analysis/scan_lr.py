@@ -22,6 +22,7 @@ Demonstrations:
 Read-only. Writes CSV + plot to analysis/.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -29,17 +30,19 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 HERE = os.path.dirname(__file__)
-DATA = os.path.join(HERE, "..", "simdata", "v2")
 N, RAD = 10000, 100
 S0 = np.pi * RAD ** 2
 LAM0 = N / S0
 
 
 def load(eps, cap=200000, seed=1):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    df = pd.read_csv(f)
-    d = df[(df.S_prime != -1) & (df.N_prime != -1)]
+    d = load_raw_df(eps)
+    if d is None:
+        return None, None, None
     if len(d) > cap:
         d = d.sample(cap, random_state=seed)
     n = d.N_prime.values.astype(float)
@@ -64,6 +67,8 @@ def main():
     store = {}
     for eps in eps_sweep:
         n, R, mu = load(eps)
+        if n is None:
+            continue
         L = twolnLR(n, mu)
         L = L[np.isfinite(L) & (R > 1)]
         med = np.median(L)
@@ -109,7 +114,7 @@ def main():
           f"(~{stats.norm.isf(pmed/2):.1f} sigma).")
     print(f"  Yet such clusters appear in essentially every CSR field. Naive Wilks scoring")
     print(f"  overstates significance by ~{1/pmed:.0e}x. This is BOTH selection bias AND the")
-    print(f"  small-mu (mu~{np.median(LAM0*load(1.2)[2]/load(1.2)[2]*0+0.5):.1f}) breakdown of the chi^2 asymptotic.")
+    print(f"  small-mu (mu~0.5) breakdown of the chi^2 asymptotic.")
     print(f"  => only MC-replay calibrates; the simdata IS that replay, in R-space (Findings #1-#4).")
 
     # plot

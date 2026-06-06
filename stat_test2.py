@@ -11,23 +11,13 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def load_data(eps_value, data_dir, N, radius):
-    # Load data for a specific eps value
-    lambda0 = N / (np.pi * radius ** 2)  # Initial point density
-    data_file = os.path.join(data_dir, f'simulation_data_N{N}_radius{radius}_eps{eps_value:.2f}.csv')
-    if not os.path.exists(data_file):
-        print(f"Data file {data_file} not found for eps = {eps_value:.2f}.")
+    from modules.simv2_data import load_raw_df
+    lambda0 = N / (np.pi * radius ** 2)
+    df_valid = load_raw_df(eps_value, int(N), int(radius), data_dir)
+    if df_valid is None:
         return None, None
-    # Load the data
-    df = pd.read_csv(data_file)
-    # Filter valid clusters
-    df_valid = df[(df['S_prime'] != -1) & (df['N_prime'] != -1)].copy()
-    if df_valid.empty:
-        print(f"No valid clusters found for eps = {eps_value:.2f}.")
-        return None, None
-    # Compute lambda_prime and ratio
     df_valid['lambda_prime'] = df_valid['N_prime'] / df_valid['S_prime']
     df_valid['ratio'] = df_valid['lambda_prime'] / lambda0
-    # Filter out ratios less than 5
     df_valid = df_valid[df_valid['ratio'] >= 5]
     if df_valid.empty:
         print(f"No data with ratio >= 5 for eps = {eps_value:.2f}.")

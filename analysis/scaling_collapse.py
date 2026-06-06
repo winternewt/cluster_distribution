@@ -11,13 +11,16 @@ is the genuinely interesting second-order physics (fixed min_samples vs growing 
 Read-only on simdata/v2. Writes summary CSV + plots to analysis/.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-DATA = os.path.join(os.path.dirname(__file__), "..", "simdata", "v2")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
+
 OUT = os.path.dirname(__file__)
 N, RAD = 10000, 100
 LAM0 = N / (np.pi * RAD ** 2)            # 0.318310
@@ -25,23 +28,12 @@ RCAP = 10 / (0.5 * LAM0)                 # 62.83 raw-R censoring cap
 QS = [0.05, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
 
 
-def load(eps):
-    f = os.path.join(DATA, f"simulation_data_N{N}_radius{RAD}_eps{eps:.2f}.csv")
-    if not os.path.exists(f):
-        return None
-    df = pd.read_csv(f)
-    d = df[(df.S_prime != -1) & (df.N_prime != -1)]
-    if len(d) < 2000:
-        return None
-    return d
-
-
 def main():
     eps_sweep = np.round(np.arange(0.95, 2.001, 0.05), 2)
     rows = []
     ecdf_store = {}   # eps -> R array (for plotting a subset)
     for eps in eps_sweep:
-        d = load(eps)
+        d = load_raw_df(eps)
         if d is None:
             continue
         Np = d.N_prime.values.astype(float)

@@ -19,11 +19,14 @@ Two estimates of the null tail of the cluster statistic, agreeing => confidence:
 Brute-force data (where it exists) is the third, ground-truth check. Statistic = 2lnLR
 (recommended: exponential/LDT tail). Also reports R. eps=1.20 reference.
 """
-import os, numpy as np, pandas as pd
+import os, sys, numpy as np, pandas as pd
 from numpy.random import default_rng
 from scipy import stats
 from scipy.spatial import ConvexHull
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.simv2_data import load_raw_df
 
 HERE = os.path.dirname(__file__)
 N, RAD, EPS = 10000, 100, 1.20
@@ -36,8 +39,9 @@ def twolnLR_from(nv, Sv):
 
 # ---------- load brute-force ground truth ----------
 def load():
-    df = pd.read_csv(os.path.join(HERE,"..","simdata","v2",f"simulation_data_N{N}_radius{RAD}_eps{EPS:.2f}.csv"))
-    d = df[(df.S_prime!=-1)&(df.N_prime!=-1)]
+    d = load_raw_df(EPS)
+    if d is None:
+        return None, None, None, None, None
     n = d.N_prime.values.astype(float); S = d.S_prime.values
     occ = d.N_prime.value_counts(normalize=True).sort_index()
     return n, S, (n/S)/LAM0, twolnLR_from(n,S), occ
@@ -102,6 +106,8 @@ def z_of(p): return stats.norm.isf(np.clip(p,1e-300,1-1e-12))
 
 def main():
     n,S,R,L,occ = load()
+    if n is None:
+        print("data unavailable"); return
     print(f"brute-force eps={EPS}: {len(L)} clusters; max 2lnLR={L.max():.1f}  (p_floor~{1/len(L):.1e})")
 
     # (A) GPD on 2lnLR
