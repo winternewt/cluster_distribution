@@ -222,7 +222,7 @@ __marimo__/
 .just_dna_pipelines.code-workspace
 
 # Internal data-prep / analysis scripts (not used by app)
-tools/
+# tools/   # re-enabled: tools/ contains simdata conversion + HF upload scripts for this repo
 
 # Repo-local runtime state / caches
 data/interim/
@@ -255,3 +255,9 @@ tmp/
 .claude/
 analysis/uncensored_eps1.20.csv
 analysis/null_cache.npz
+
+# Simulation data — large, untracked; live in simdata/v2/ (CSV) and simdata/v2_parquet/ (Parquet).
+# Backed up to HuggingFace: https://huggingface.co/datasets/Winternewt/cluster-distribution-simdata
+# Never commit these to git; regenerate from simulate.py (~60h) or pull from HF.
+simdata/v2/
+simdata/v2_parquet/
