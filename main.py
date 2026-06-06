@@ -65,5 +65,38 @@ def plot() -> None:
     main()
 
 
+@app.command()
+def demo(
+    port: int = typer.Option(8000, "--port", "-p", help="Port to listen on."),
+    host: str = typer.Option("localhost", "--host", help="Host to bind."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically."),
+) -> None:
+    """Serve the live CSR demo (webapp/) on a local HTTP server."""
+    import os
+    import threading
+    import webbrowser
+    from http.server import HTTPServer, SimpleHTTPRequestHandler
+    from pathlib import Path
+    from functools import partial
+
+    webapp_dir = Path(__file__).parent / "webapp"
+    if not webapp_dir.exists():
+        typer.echo("webapp/ directory not found.", err=True)
+        raise typer.Exit(1)
+
+    Handler = partial(SimpleHTTPRequestHandler, directory=str(webapp_dir))
+    server = HTTPServer((host, port), Handler)
+    url = f"http://{host}:{port}"
+    typer.echo(f"Serving demo at {url}  (Ctrl-C to stop)")
+
+    if not no_browser:
+        threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        typer.echo("\nStopped.")
+
+
 if __name__ == "__main__":
     app()
