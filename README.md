@@ -1,21 +1,33 @@
 # cluster-distribution
 
-DBSCAN cluster simulation on random 2D point clouds, plus Beta-Prime fitting on cluster density ratios.
+Monte-Carlo study of DBSCAN clustering on random 2D point clouds (CSR / Poisson null),
+plus analytic derivation of the null distribution and a calibrated anomaly detector.
 
 ```bash
 uv sync
 uv run cluster-distribution simulate   # or: fit, stats, visualize, plot, ...
 ```
 
-Full catalog: [docs/overview.md](docs/overview.md). Analytic results & the detector theory: [docs/analytic_findings.md](docs/analytic_findings.md).
+Full catalog: [docs/overview.md](docs/overview.md) ·
+Analytic results: [docs/analytic_findings.md](docs/analytic_findings.md) ·
+Executive summary: [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md)
+
+## Findings in brief
+
+DBSCAN-on-noise produces structured, non-trivial cluster statistics. The density ratio
+`R = (N'/S')/λ₀` obeys a factorization `R(eps) = scale(eps)·X` where `X` is
+eps-invariant: rescaling to `R̃ = R·eps²` collapses the distribution onto a single
+master inverse-gamma (shape ≈ 20.5). The correct detection statistic is the
+**Kulldorff scan likelihood ratio**, not the bare density ratio. A typical CSR cluster
+scores "~6σ" under naive per-window scoring — overstated ~10⁸×. See
+[docs/analytic_findings.md](docs/analytic_findings.md) for the full derivation.
 
 ## Detector library
 
-`modules/cluster_detector.py` is the importable, calibrated anomaly detector distilled from
-the analysis. It flags local over-densities in a 2D point field and gives each a
-look-elsewhere-corrected p-value and Gaussian-equivalent z, via two complementary arms:
-DBSCAN + Kulldorff scan-LR (tight clumps) and kernel-density peaks (extended over-densities,
-with a hybrid analytic/MC null).
+`modules/cluster_detector.py` — importable, calibrated two-arm anomaly detector.
+Flags local over-densities and gives each a look-elsewhere-corrected p-value and
+Gaussian-equivalent z via DBSCAN + Kulldorff scan-LR (tight clumps) and KDE peaks
+(extended over-densities, hybrid analytic/MC null).
 
 ```python
 import numpy as np
@@ -30,25 +42,49 @@ for d in det.score(pts, zthr=3.0):
     print(d)   # Detection(method, z, p_value, x, y, n_points, scale)
 ```
 
-For a non-CSR background, pass your own field sampler: `calibrate(null_generator=lambda rng: my_points(rng))`.
-Caveats (see Finding #9): score raw points, not the bare density ratio; the null assumes the
-configured `n_background`/`radius`/`eps` (rescale via the µ_eps law for other settings); RFT
-z in the deep tail is a screening value.
+For a non-CSR background: `calibrate(null_generator=lambda rng: my_points(rng))`.
+
+## Live demo
+
+`webapp/index.html` — static, dependency-free browser demo. Opens with no build step.
+Three live panels: noise field + detected clusters, `R̃` histogram converging to the
+master curve, cluster z-scores forming N(0,1). Move the eps slider to see the collapse.
+
+```bash
+cd webapp && python3 -m http.server 8000   # then open http://localhost:8000
+```
+
+GitHub Pages: copy `webapp/` to a `docs/` folder or `gh-pages` branch (see `webapp/README.md`).
 
 ## Data
 
-Simulation CSVs live in `simdata/v2/` (~4.3 GB, Git LFS). Clone without downloading them:
+207 simulation CSVs (~4.3 GB) are stored as Parquet on HuggingFace — **not in this repo**.
+Scripts download slices on demand and cache them locally in `simdata/v2_parquet/`.
 
-```bash
-GIT_LFS_SKIP_SMUDGE=1 git clone <url>
+**HuggingFace dataset:** https://huggingface.co/datasets/Winternewt/cluster-distribution-simdata
+
+```python
+# Scripts handle this automatically; to fetch a slice manually:
+import pandas as pd
+df = pd.read_parquet(
+    "hf://datasets/Winternewt/cluster-distribution-simdata/data/eps_1.20.parquet"
+)
+df = df[df.S_prime != -1]   # drop placeholder rows (no cluster found that iteration)
 ```
 
-## Push code, skip LFS upload
-
+**Bulk download:**
 ```bash
-git add -A -- ':!simdata/v2/*.csv'   # optional: omit data from commit
-git commit -m "your message"
-GIT_LFS_SKIP_PUSH=1 git push -u origin HEAD
+huggingface-cli download Winternewt/cluster-distribution-simdata \
+    --repo-type dataset --local-dir simdata/v2_parquet
 ```
 
-`GIT_LFS_SKIP_PUSH=1` pushes commits (and LFS pointer files if any) without uploading LFS blobs — stays within GitHub's free bandwidth quota.
+Schema: `S_prime` (float64, convex-hull area), `N_prime` (int64, cluster size),
+`iteration` (int64). Rows with `S_prime = -1` are placeholder (no cluster that field).
+
+## Tools
+
+| Script | Purpose |
+|---|---|
+| `tools/simdata_to_parquet.py` | Convert local CSVs → zstd parquet, validate 1-to-1 |
+| `tools/upload_to_hf.py` | Upload parquet folder to HuggingFace (uses `upload_large_folder`) |
+| `tools/validate_hf_download.py` | Download N spot-check files from HF and assert exact match vs local CSVs |
