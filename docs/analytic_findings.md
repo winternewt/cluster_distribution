@@ -42,7 +42,7 @@ Status: all planned workstreams (T1–T6) complete; results below. Artifacts in 
 R(eps)  =  scale(eps) · X ,     scale(eps) ∝ eps^(−2.205) ,     X ⟂ eps
 ```
 
-- **Scale.** `meanR ∝ eps^(−2.205)`, `medR ∝ eps^(−2.193)` (fit over the whole range). Pure geometry predicts exactly **−2** (eps is the only length scale ⇒ hull area `S' ∝ eps²` ⇒ `R = N'/(S'λ₀) ∝ eps⁻²`). The leading-order constant `C = meanR·eps²` drifts only smoothly: 24.97 (eps=1.0) → 21.53 (eps=2.0), i.e. `C ∝ eps^(−0.205)`.
+- **Scale.** `meanR ∝ eps^(−2.205)` *as a single power-law fit over [0.95,2.0]* — but this exponent is **NOT constant, it RUNS** (verified on existing data, which pins `meanR(eps)` to ~0.05%): the log-log has real curvature (quadratic coeff −0.38), and the **local** exponent runs from **exactly −2.000 as eps→0** (pure geometry: eps is the only length scale ⇒ `S'∝eps²` ⇒ `R∝eps⁻²`) through −2.13 @eps=1.2, −2.25 @1.5, −2.52 @2.0. So "−2.205"/"−0.205" is a *window-averaged* number, not a universal constant (it shifts to −2.28 over [0.95,2.3]). The well-defined objects are the **exact −2 geometric limit** and the **running** of the anomalous part (driven by fixed-`min_samples` occupancy+area drift, §Finding #2). No sim needed — the data already pins the curve; the quantity simply isn't a constant.
 - **Shape `X` is eps-invariant to ~1%.** Quantile ratios to the median are flat across the entire range (factor 4 in eps²):
 
   | ratio | mean | CV across eps |
