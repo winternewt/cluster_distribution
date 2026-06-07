@@ -23,6 +23,8 @@ Given N points in a bounded 2D region, decide whether an algorithm-detected loca
 
 8. **A closed-form, z-calibrated per-cluster master (2026-06-07).** One analytic null covers every eps: `R̃ = R·ε^α(ε)` with `α(ε)=2.03+0.26·ln ε`, scored by a **shifted inverse-gamma with integer shape 10 = min_samples** — `SF(R̃)=P(10, 157.70/(R̃−7.51))`, exact via two Poisson sums (no special functions). Pooled KS≈0.005 over eps 1.00–1.60; |median_z|≤0.02 per eps. The location shift is what every zero-loc candidate (log-logistic, plain inv-gamma) missed — they mis-centre z by ~0.07σ (root-cause analysis: `docs/RCA.md`). Shape 10 is the `a→∞` limit of the legacy Beta-Prime fits, closing the loop on the original empirical result.
 
+9. **The master's parameters are physics, and the law is local (`docs/RCA.md` §8).** The support floor is **DBSCAN's certification bound**: an `n = min_samples` cluster must fit in one core point's eps-ball, so `R̃ ≥ m·(1+2π²/3(m−1)²) ≈ 10.87` — observed global minimum 10.92 over 1.2M clusters. The master's mean `loc + scale/(shape−1) = 25.03` reproduces the no-free-parameter amplitude `C ≈ 25` of point 3. And the law is **N-invariant at fixed λ₀** (verified N = 10k/20k/40k, radius √N: identical master and calibration, yield ∝ N) — `R̃` depends only on (λ₀, eps, min_samples), so the shipped constants apply to any field size.
+
 ## Deliverable
 An importable, calibrated, open detector (`modules/cluster_detector.py`) with a pluggable null model — a drop-in for scoring over-densities in real point-field data, replacing the invalid "threshold the density ratio" approach. Includes `score_clusters()`: instant per-cluster ratings against the analytic shifted inv-gamma(10) master (no MC; same constants as the live demo `webapp/`).
 

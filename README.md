@@ -21,10 +21,21 @@ running exponent fit from 110 eps values) collapses the distribution onto a sing
 a **shifted inverse-gamma with integer shape 10** (= `min_samples`),
 `SF(R̃) = P(10, 157.70/(R̃ − 7.51))`, pooled KS≈0.005 over eps 1.00–1.60 and z-calibrated
 to |median_z| ≤ 0.02 at every eps. The location shift is essential — zero-loc families
-(log-logistic, plain inv-gamma) mis-centre z by ~0.07σ (`docs/RCA.md`). The correct
-detection statistic is the **Kulldorff scan likelihood ratio**, not the bare density ratio.
-A typical CSR cluster scores "~6σ" under naive per-window scoring — overstated ~10⁸×. See
-[docs/analytic_findings.md](docs/analytic_findings.md) for the full derivation.
+(log-logistic, plain inv-gamma) mis-centre z by ~0.07σ (`docs/RCA.md`).
+
+The master's parameters are not arbitrary (`docs/RCA.md` §8): its support floor is
+**DBSCAN's certification bound** — an `n = min_samples` cluster must fit inside one core
+point's eps-ball, so `R̃ ≥ min_samples·(1+2π²/3(m−1)²) ≈ 10.87` (observed global min
+10.92 over 1.2M clusters), and its mean `loc + scale/(shape−1) = 25.03` equals the
+no-free-parameter amplitude `C = N_min/f·k/(k−1) ≈ 25` derived from hull geometry.
+The law is **N-invariant at fixed λ₀** (`analysis/ncheck.py`: N = 10k/20k/40k, radius √N
+— identical master and calibration, yield ∝ N), i.e. a purely local observable of
+(λ₀, eps, min_samples).
+
+The correct *detection* statistic is the **Kulldorff scan likelihood ratio**, not the bare
+density ratio. A typical CSR cluster scores "~6σ" under naive per-window scoring —
+overstated ~10⁸×. See [docs/analytic_findings.md](docs/analytic_findings.md) for the full
+derivation.
 
 ## Detector library
 
@@ -51,6 +62,8 @@ For a non-CSR background: `calibrate(null_generator=lambda rng: my_points(rng))`
 For cheap per-cluster ratings without any MC, `det.score_clusters(pts)` scores each
 DBSCAN cluster against the analytic shifted inv-gamma(10) master (same constants as the
 webapp demo). Per-cluster p — *not* look-elsewhere corrected; use `score()` for detection.
+The master is valid for **any field size**: it depends only on (λ₀, eps, min_samples),
+verified at N = 10k–40k (`analysis/ncheck.py`).
 
 ## Live demo
 
