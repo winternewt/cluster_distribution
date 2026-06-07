@@ -7,7 +7,7 @@
 ## ⚡ Update (overnight `analytic-night`, see `analytic_findings.md`)
 
 Several items below are now partly or wholly resolved — read `docs/analytic_findings.md` first:
-- **§2 (eps-independent scorer): DONE.** The `R·eps²` collapse gives one master inverse-gamma(20.5); `analysis/scorer.py` ships a validated scorer. The eps-weighting debate is moot (no weights needed). Conservative envelope still available for comparison.
+- **§2 (eps-independent scorer): DONE.** The `R·eps^α(ε)` collapse (α(ε)=2.031525+0.258273·ln ε; fit from 110 eps values) cuts the residual spread to <0.5%. Master: log-logistic (SF=1/(1+(R̃/24.06)^7.87), KS<0.03) or inv-gamma (shape≈20.5). `analysis/scorer.py` ships the scorer; `scorer_master.json` stores the parameters. The eps-weighting debate is moot.
 - **§1 (Kulldorff LR): computed.** `analysis/scan_lr.py` shows the LR per cluster, quantifies look-elsewhere (~10⁸×), and confirms LR > raw R (size-weighting). Still TODO: calibrate **max-LR per field** via re-sim (needs T-style geometry run).
 - **§3 (censoring): deepened.** Confirmed `R_max=62.83` is the `min_area` artifact; the master shape's deep tail is also slightly heavier than the parametric fit. Tail work still blocked on relaxing `min_area`.
 - **New TODOs from tonight:** (a) check `k(n)≈3.5n−15` hull-area-shape law against Rényi–Sulanke / Efron stochastic-geometry results; (b) model the `eps^−0.205` residual = `P(N'=n)` broadening analytically; (c) re-fit the now-bug-fixed mixture code (4-vs-5 stride fixed) to see if non-degenerate mixtures appear (likely still single-component-sufficient); (d) calibrate the scorer on `LR` (better statistic) rather than `R`.

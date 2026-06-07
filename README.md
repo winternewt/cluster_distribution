@@ -16,10 +16,11 @@ Executive summary: [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md)
 
 DBSCAN-on-noise produces structured, non-trivial cluster statistics. The density ratio
 `R = (N'/S')/λ₀` obeys a factorization `R(eps) = scale(eps)·X` where `X` is
-eps-invariant: rescaling to `R̃ = R·eps²` collapses the distribution onto a single
-master inverse-gamma (shape ≈ 20.5). The correct detection statistic is the
-**Kulldorff scan likelihood ratio**, not the bare density ratio. A typical CSR cluster
-scores "~6σ" under naive per-window scoring — overstated ~10⁸×. See
+eps-invariant: rescaling to `R̃ = R·ε^α(ε)` (where `α(ε) = 2.031 + 0.258·ln ε` is a
+running exponent fit from 110 eps values) collapses the distribution onto a single master
+(log-logistic, KS<0.03; or inv-gamma, shape≈20.5) with <0.5% residual spread. The correct
+detection statistic is the **Kulldorff scan likelihood ratio**, not the bare density ratio.
+A typical CSR cluster scores "~6σ" under naive per-window scoring — overstated ~10⁸×. See
 [docs/analytic_findings.md](docs/analytic_findings.md) for the full derivation.
 
 ## Detector library
@@ -47,8 +48,9 @@ For a non-CSR background: `calibrate(null_generator=lambda rng: my_points(rng))`
 ## Live demo
 
 `webapp/index.html` — static, dependency-free browser demo. Opens with no build step.
-Three live panels: noise field + detected clusters, `R̃` histogram converging to the
-master curve, cluster z-scores forming N(0,1). Move the eps slider to see the collapse.
+Three live panels: noise field + detected clusters, `R̃ = R·ε^α(ε)` histogram converging
+to the log-logistic master curve, cluster z-scores forming N(0,1). Move the eps slider
+to see the collapse.
 
 ```bash
 cd webapp && python3 -m http.server 8000   # then open http://localhost:8000

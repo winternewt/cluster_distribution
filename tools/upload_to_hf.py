@@ -81,14 +81,16 @@ valid DBSCAN cluster (common at low eps where clustering is rare).
 ## Key derived quantities
 
 ```python
-lambda0 = 10000 / (np.pi * 100**2)   # ≈ 0.31831
-R = (df.N_prime / df.S_prime) / lambda0   # density ratio (main statistic)
-R_tilde = R * eps**2                       # eps-collapsed statistic (eps-invariant master)
+lambda0 = 10000 / (np.pi * 100**2)       # ≈ 0.31831
+R = (df.N_prime / df.S_prime) / lambda0  # density ratio (main statistic)
+alpha = 2.031525 + 0.258273 * np.log(eps)  # running exponent (fit from 110 eps values)
+R_tilde = R * eps**alpha                  # eps-collapsed statistic (<0.5% residual spread)
 ```
 
 The density ratio `R` follows a heavy-tailed distribution (tail index α≈7). After
-rescaling to `R̃ = R·eps²`, the distribution collapses to a single master inverse-gamma
-(shape≈20.5) across all eps — the central empirical finding of this dataset.
+rescaling to `R̃ = R·ε^α(ε)` where `α(ε) = 2.031 + 0.258·ln ε`, the distribution
+collapses to a single master (log-logistic with shape≈7.87, scale≈24.06; or inv-gamma
+shape≈20.5) across all eps — the central empirical finding of this dataset.
 
 ## Usage
 
@@ -103,7 +105,8 @@ df = df[df.S_prime != -1]   # drop placeholder rows
 
 lambda0 = 10000 / (np.pi * 100**2)
 df['R'] = (df.N_prime / df.S_prime) / lambda0
-df['R_tilde'] = df['R'] * eps**2
+alpha = 2.031525 + 0.258273 * np.log(eps)
+df['R_tilde'] = df['R'] * eps**alpha
 print(df.R_tilde.describe())
 ```
 
