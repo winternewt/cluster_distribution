@@ -93,10 +93,11 @@ These are genuinely different answers; any deliverable must state which it compu
 
 ## Repo map (files → role)
 
-**Sim:** `simulate.py` (parallel DBSCAN MC + eps sweep; writes `simdata/v2/*.csv`; resumable; 16 procs; per-worker seeded RNG) · `plotter.py` (S'×N' 2D hist).
-**Fit:** `beta_mix_vs_regular.py` (CLI `fit`; per-eps single + optional `--mix` mixture → `results/regular_fit.csv`, `regression_params.csv`) · `mixure_of_betas.py` (CLI `fit-mixture`; one component per eps; **has LL-arg bug, see Gotchas**) · `mixture_of_betas2.py` (CLI `fit-merged`; eps-linear global model → `merged_fit_params.csv`) · `floc.py` (floc exploration).
-**Stats:** `stat_tests.py` (CLI `stats`; normality + Poisson → `analysis_summary.csv`, plots) · `stat_test2.py` (Gamma/LogN/Weibull/BetaPrime ECDF compare) · `stat_test3.py` (Gamma GoF per eps; mixture-by-N') · `anova.py` (ANOVA + regression of Gamma params vs eps; 3 methods).
-**Viz:** `visualize.py` (3D QQ, heatmap, surface) · `beta_plot.py` (CLI `plot`; overlay saved fits) · `plot_hist.py` (refit+overlay).
+*(Analysis scripts moved 2026-06-07 from repo root into `scripts/{sim,fit,stats,viz}/` packages; `main.py` lazy-imports them as `scripts.<group>.<name>`.)*
+**Sim** (`scripts/sim/`)**:** `simulate.py` (parallel DBSCAN MC + eps sweep; writes `simdata/v2/*.csv`; resumable; 16 procs; per-worker seeded RNG) · `plotter.py` (S'×N' 2D hist).
+**Fit** (`scripts/fit/`)**:** `beta_mix_vs_regular.py` (CLI `fit`; per-eps single + optional `--mix` mixture → `results/regular_fit.csv`, `regression_params.csv`) · `mixure_of_betas.py` (CLI `fit-mixture`; one component per eps; **has LL-arg bug, see Gotchas**) · `mixture_of_betas2.py` (CLI `fit-merged`; eps-linear global model → `merged_fit_params.csv`) · `floc.py` (floc exploration; its `floc.png` artifact lives in `results/`).
+**Stats** (`scripts/stats/`)**:** `stat_tests.py` (CLI `stats`; normality + Poisson → `analysis_summary.csv`, plots) · `stat_test2.py` (Gamma/LogN/Weibull/BetaPrime ECDF compare) · `stat_test3.py` (Gamma GoF per eps; mixture-by-N') · `anova.py` (ANOVA + regression of Gamma params vs eps; 3 methods).
+**Viz** (`scripts/viz/`)**:** `visualize.py` (3D QQ, heatmap, surface) · `beta_plot.py` (CLI `plot`; overlay saved fits) · `plot_hist.py` (refit+overlay).
 **Modules:** `modules/simv2_data.py` (data I/O: `load_data`, `sample_data`, `load_fit_parameters`, `load_density_ratio`) · `modules/beta_stats.py` (mixture PDF/NLL, eps-linear betaprime, `perform_linear_regression`) · `modules/common_stats.py` (`compute_aic_bic`, `compute_ks_statistic`).
 **Entry:** `main.py` (Typer; `uv run cluster-distribution {simulate,fit,fit-mixture,fit-merged,stats,visualize,plot}`). Several analysis scripts (`anova`, `stat_test2/3`, `floc`, `plot_hist`, `visualize`-internals) are run directly, not all via CLI.
 **Data:** `simdata/v2/` (207 CSVs, cols `S_prime,N_prime,iteration`, ~4.3 GB, LFS, **~60 h compute**) · `simdata/v1/convert.py` (legacy v1→v2; v1 dir empty).
@@ -172,7 +173,7 @@ uv run cluster-distribution simulate    # regenerate simdata/v2 — ~60 h on thi
 uv run cluster-distribution fit          # per-eps Beta-Prime → results/regular_fit.csv
 uv run cluster-distribution stats        # normality/Poisson summary
 uv run cluster-distribution plot         # overlay saved fits
-uv run python anova.py                   # (and stat_test2.py / stat_test3.py / floc.py / visualize.py) run directly
+uv run python scripts/stats/anova.py     # (and scripts/stats/stat_test2|3.py, scripts/fit/floc.py, scripts/viz/*.py) run directly
 # clone w/o 4.3GB: GIT_LFS_SKIP_SMUDGE=1 git clone <url>
 # push code w/o LFS upload: GIT_LFS_SKIP_PUSH=1 git push -u origin HEAD
 ```

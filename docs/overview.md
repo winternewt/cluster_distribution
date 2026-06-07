@@ -20,12 +20,20 @@ Python: `>=3.11` (`.python-version` pins 3.14).
 ```
 cluster_distribution/
 ├── docs/                  # Documentation (this file)
-├── modules/               # Shared library code
+├── modules/               # Shared library code (incl. cluster_detector.py)
+├── scripts/               # Analysis & simulation scripts, grouped semantically
+│   ├── sim/               #   simulate.py, plotter.py
+│   ├── fit/               #   beta_mix_vs_regular.py, mixure_of_betas.py, mixture_of_betas2.py, floc.py
+│   ├── stats/             #   stat_tests.py, stat_test2.py, stat_test3.py, anova.py
+│   └── viz/               #   visualize.py, beta_plot.py, plot_hist.py
+├── analysis/              # Analytic-night & detector studies (scorer, zcal, ncheck, ...)
+├── webapp/                # Live browser demo (GitHub Pages)
+├── tools/                 # Parquet conversion / HuggingFace upload
 ├── simdata/               # Simulation inputs/outputs
 │   ├── v1/                # Legacy data format + converter
-│   └── v2/                # Current simulation CSVs (207 files, ~4.3 GB)
+│   └── v2_parquet/        # Parquet cache, auto-downloaded from HuggingFace
 ├── results/               # Fit outputs, plots, summaries (~1.9 MB)
-├── *.py                   # Top-level analysis & simulation scripts
+├── main.py                # Typer CLI entry (cluster-distribution)
 ├── pyproject.toml         # Project metadata & dependencies
 ├── uv.lock                # Locked dependency versions
 └── .gitattributes         # Git LFS rules for large data
@@ -33,11 +41,11 @@ cluster_distribution/
 
 ## Pipeline (typical workflow)
 
-1. **Simulate** — `simulate.py` generates random points in a circle, runs DBSCAN, records cluster area/count per iteration.
-2. **Explore** — `visualize.py`, `stat_tests.py`, `plotter.py` inspect distributions across eps values.
-3. **Fit** — `beta_mix_vs_regular.py`, `mixure_of_betas.py`, `mixture_of_betas2.py` fit Beta-Prime models.
-4. **Plot fits** — `beta_plot.py`, `plot_hist.py`, `floc.py` visualize fitted parameters vs eps.
-5. **Validate** — `anova.py`, `stat_test2.py`, `stat_test3.py` run statistical tests.
+1. **Simulate** — `scripts/sim/simulate.py` generates random points in a circle, runs DBSCAN, records cluster area/count per iteration.
+2. **Explore** — `scripts/viz/visualize.py`, `scripts/stats/stat_tests.py`, `scripts/sim/plotter.py` inspect distributions across eps values.
+3. **Fit** — `scripts/fit/beta_mix_vs_regular.py`, `scripts/fit/mixure_of_betas.py`, `scripts/fit/mixture_of_betas2.py` fit Beta-Prime models.
+4. **Plot fits** — `scripts/viz/beta_plot.py`, `scripts/viz/plot_hist.py`, `scripts/fit/floc.py` visualize fitted parameters vs eps.
+5. **Validate** — `scripts/stats/anova.py`, `scripts/stats/stat_test2.py`, `scripts/stats/stat_test3.py` run statistical tests.
 
 ## Scripts
 
@@ -45,34 +53,34 @@ cluster_distribution/
 
 | Script | Purpose |
 |--------|---------|
-| `simulate.py` | Parallel DBSCAN simulation over an eps sweep. Writes `simulation_data_N{N}_radius{R}_eps{eps}.csv` to `simdata/v2/`. Resumable (appends to existing file). |
-| `plotter.py` | 2D histogram of cluster area vs count from a single simulation file. |
+| `scripts/sim/simulate.py` | Parallel DBSCAN simulation over an eps sweep. Writes `simulation_data_N{N}_radius{R}_eps{eps}.csv` to `simdata/v2/`. Resumable (appends to existing file). |
+| `scripts/sim/plotter.py` | 2D histogram of cluster area vs count from a single simulation file. |
 
 ### Distribution fitting
 
 | Script | Purpose |
 |--------|---------|
-| `beta_mix_vs_regular.py` | Compare single Beta-Prime vs two-component mixture fits per eps. Writes `regular_fit_eps*.csv`, `mixture_fit_eps*.csv`, `regression_params.csv`. |
-| `mixure_of_betas.py` | Fit Beta-Prime mixture across merged eps data (typo in filename — kept for history). |
-| `mixture_of_betas2.py` | Fit eps-dependent Beta-Prime model with regression-linked parameters. Writes `merged_fit_params.csv`. |
-| `floc.py` | Explore fixed-location (`floc`) Beta-Prime fitting; compares gamma, lognormal, Weibull, betaprime. |
-| `plot_hist.py` | Histogram + fit overlay plots for density ratios. |
+| `scripts/fit/beta_mix_vs_regular.py` | Compare single Beta-Prime vs two-component mixture fits per eps. Writes `regular_fit_eps*.csv`, `mixture_fit_eps*.csv`, `regression_params.csv`. |
+| `scripts/fit/mixure_of_betas.py` | Fit Beta-Prime mixture across merged eps data (typo in filename — kept for history). |
+| `scripts/fit/mixture_of_betas2.py` | Fit eps-dependent Beta-Prime model with regression-linked parameters. Writes `merged_fit_params.csv`. |
+| `scripts/fit/floc.py` | Explore fixed-location (`floc`) Beta-Prime fitting; compares gamma, lognormal, Weibull, betaprime. |
+| `scripts/viz/plot_hist.py` | Histogram + fit overlay plots for density ratios. |
 
 ### Statistical analysis
 
 | Script | Purpose |
 |--------|---------|
-| `stat_tests.py` | Normality tests (Shapiro, Anderson-Darling, KS) on density ratios; Poisson tests on `N'`. Batch plots to `results/ratio_plots/` and `results/N_prime_plots/`. |
-| `stat_test2.py` | Distribution comparison with ECDF plots (gamma, lognormal, Weibull, betaprime). |
-| `stat_test3.py` | Gamma fit goodness-of-fit across eps values. |
-| `anova.py` | One-way ANOVA and linear regression on `lambda_prime` across eps. |
+| `scripts/stats/stat_tests.py` | Normality tests (Shapiro, Anderson-Darling, KS) on density ratios; Poisson tests on `N'`. Batch plots to `results/ratio_plots/` and `results/N_prime_plots/`. |
+| `scripts/stats/stat_test2.py` | Distribution comparison with ECDF plots (gamma, lognormal, Weibull, betaprime). |
+| `scripts/stats/stat_test3.py` | Gamma fit goodness-of-fit across eps values. |
+| `scripts/stats/anova.py` | One-way ANOVA and linear regression on `lambda_prime` across eps. |
 
 ### Visualization
 
 | Script | Purpose |
 |--------|---------|
-| `visualize.py` | Q-Q plots, correlation heatmaps, regression diagnostics across eps. |
-| `beta_plot.py` | Overlay regular vs mixture Beta-Prime PDFs using saved fit params. |
+| `scripts/viz/visualize.py` | Q-Q plots, correlation heatmaps, regression diagnostics across eps. |
+| `scripts/viz/beta_plot.py` | Overlay regular vs mixture Beta-Prime PDFs using saved fit params. |
 
 ### Modules (`modules/`)
 
@@ -152,8 +160,8 @@ Managed via uv (`pyproject.toml`):
 | scipy | Distribution fitting, optimization, spatial (ConvexHull) |
 | scikit-learn | DBSCAN clustering, linear regression |
 | matplotlib | All plotting scripts |
-| seaborn | `visualize.py`, `stat_tests.py` |
-| statsmodels | `visualize.py`, `stat_tests.py`, `stat_test2.py` |
+| seaborn | `scripts/viz/visualize.py`, `scripts/stats/stat_tests.py` |
+| statsmodels | `scripts/viz/visualize.py`, `scripts/stats/stat_tests.py`, `scripts/stats/stat_test2.py` |
 
 Previous `requirements.txt` also listed PySide6 (unused by any script) and conda-local wheel paths — not carried forward.
 

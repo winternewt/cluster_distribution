@@ -28,6 +28,8 @@ The project asks: **given N points in a finite area under complete spatial rando
 
 ## 2. Pipeline and scripts — what each does, inputs, outputs
 
+> **Relocation note (2026-06-07):** the flat root-level scripts were moved into `scripts/{sim,fit,stats,viz}/` packages (semantic grouping; `main.py` lazy-imports them as `scripts.<group>.<name>`). The tables below keep the bare filenames; prepend the group path to run one directly, e.g. `uv run python scripts/stats/anova.py`.
+
 Entry point: `main.py` (Typer CLI, `uv run cluster-distribution <cmd>`). Note several analysis scripts are **not** wired into the CLI and are run directly (`uv run python <script>.py`).
 
 ### 2.1 Simulation
@@ -156,7 +158,7 @@ uv sync
 uv run cluster-distribution simulate      # regenerates simdata/v2 — ~60 h on this machine
 uv run cluster-distribution fit           # per-eps Beta-Prime → results/regular_fit.csv
 uv run cluster-distribution stats          # normality/Poisson summary
-uv run python anova.py | stat_test3.py | ... # direct-run analysis scripts
+uv run python scripts/stats/anova.py          # direct-run analysis scripts (scripts/{sim,fit,stats,viz}/)
 ```
 
 **`simdata/v2/` ≈ 60 hours of compute on this exact machine** (user-reported, May 2026). Treat it as a precious artifact and a benchmark: it is the empirical null. Regenerate only with intent (e.g. to add geometry columns — roadmap §4). Clone without pulling 4.3 GB: `GIT_LFS_SKIP_SMUDGE=1 git clone …`.
