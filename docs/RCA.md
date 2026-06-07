@@ -170,4 +170,118 @@ both size and principle, and it keeps an analytic tail (polynomial, index 10).
 ε=1.2) remains unvalidated — same caveat as before. (ii) The Python-side
 scorer (`analysis/scorer_master.json`) still uses the older `R·eps²` collapse
 with zero-loc inv-gamma(20.5); it has the same loc-bias and should be migrated
-to the shifted form.
+to the shifted form. *(Done — rolled out to `analysis/scorer.py`,
+`modules/cluster_detector.py` and `webapp/` in the same change-set as this
+addendum; pooled KS≈0.005 over eps 1.00–1.60.)*
+
+---
+
+## 8. APPENDIX (2026-06-07) — what the location shift *is*: DBSCAN's certification floor
+
+Why does `Rt` have a left edge at all? Measured left edge of the real data
+(1.8M clusters):
+
+| ε | min R̃ | q0.1% | q1% |
+|---|---|---|---|
+| 1.10 | 11.68 | 14.25 | 15.87 |
+| 1.20 | 11.60 | 14.27 | 15.87 |
+| 1.30 | 11.11 | 14.16 | 15.85 |
+| 1.40 | **10.92** | 13.97 | 15.80 |
+
+The floor is ≈11, eps-invariant, and it is **derivable**. With sklearn's
+convention (a point counts as its own neighbour), a cluster of exactly
+`n = min_samples = 10` points must contain a core point whose eps-ball holds
+all 10. The maximal hull is therefore 1 centre + 9 points on the eps-circle —
+a regular 9-gon, area `(9/2)·sin(40°)·ε² = 2.89·ε²`, giving
+
+```
+R_min = 10/(λ₀·2.89·ε²) = 10π/2.89 · ε⁻² = 10.87·ε⁻²   →   R̃_min ≈ 10.9
+```
+
+The observed global minimum is **10.92** (ε=1.40, 1.2M clusters — the sample
+finally digs down to the infimum). Since the regular-k-gon area
+`(k/2)·sin(2π/k) → π` as k grows, the general statement is
+
+```
+R̃_floor = min_samples · (1 + 2π²/3(m−1)² + …) ≈ min_samples
+```
+
+**The left edge of R̃ IS min_samples** (up to an ~8% polygon correction at
+m=10). The `ε⁻²` scaling of the floor is pure geometry, which is why one `loc`
+survives the collapse at every eps. Larger-n clusters sprawl (multi-core
+snakes) but a snake still needs ~m points per eps-ball, so the floor stays
+≈ m — the deepest observed point is indeed an n=13 sprawler, not an n=10.
+
+Zero-loc families thus put probability mass in a region (`R̃ < 11`) that
+DBSCAN **cannot physically emit** — a guaranteed minimum density of
+min_samples per eps-ball is part of the algorithm's output contract. That is
+the entire content of §3b's "irreducible" log-skew. The fitted `loc = 7.51`
+sits below the true floor because the inv-gamma density vanishes with an
+essential singularity at loc and needs ~3.5 units of ramp room: the true
+near-floor law is a large-deviation regime (9 points conspiring onto the
+eps-circle with no 11th joining) that decays softer than inv-gamma-at-loc.
+
+**The master's parameters, decoded:**
+
+- **mean** = `loc + scale/(shape−1)` = 7.509 + 157.70/9 = **25.03** — exactly
+  the no-free-parameter amplitude derived in `analytic_findings.md`
+  (`C = N_min/f · k/(k−1) ≈ 25`). Not imposed; the MLE found it.
+- **loc** ≈ the certification floor `min_samples·1.08 ≈ 10.9`, minus ramp room.
+- **shape = 10** is the only honestly *effective* parameter: the true
+  conditionals have shape `k(n) ≈ 3.5n−15` (k(10)≈20.5); mixing over `N'`
+  roughly halves the effective curvature and the local tail index over the
+  observed window lands at ~10. The coincidence with min_samples is suggestive
+  but unproven — both `k(n)` and `P(N'=n)` are anchored at `n = m`, so any
+  effective exponent comes out "of order m". (The legacy Beta-Prime `b ≈ 10`
+  "pinned near min_samples" was this same effective exponent in different
+  coordinates.)
+
+**Family-theory view.** The true law lives on a *compact* interval — floor
+`≈ m` (connectivity geometry), ceiling `= n/(min_area·λ₀)` (the filter). After
+an affine map it is Beta-like, not Beta-Prime-like. Beta-Prime sends one
+support edge to infinity; shifted inverse-gamma is the next limit in that
+chain. The historical mistake was choosing *which edge to idealise away*:
+every zero-loc fit idealised the left edge to 0 — and the left edge is the
+single most physical number in the problem, while the right edge genuinely is
+quasi-infinite (modulo the min_area filter).
+
+**Where the last ~0.01–0.02σ lives (ranked):**
+
+1. *Occupancy drift* — `P(N'=n)` broadens with eps (mean N′ 10.32→10.66 over
+   1.10–1.40), so the mixture's shape drifts while α(ε) can only collapse its
+   median; same physics as the −0.205 anomalous exponent. Also, α(ε) was fit
+   to collapse zero-loc medians; shift and rescale don't commute (the free-fit
+   loc drifting 7.5→6.8 over 1.10→1.40 is the fingerprint).
+2. *Near-floor ramp mismatch* — large-deviation onset above R̃≈11 vs.
+   inv-gamma's essential singularity (the residual Δ[-1..0] ≈ 0.005).
+3. *Boundary clusters* — ~2% of clusters hull-touch the disk edge and obey a
+   slightly different hull-area law.
+4. *Gamma idealisation of `S'|n`* — compactly supported, only ~1% gamma.
+
+**Falsifiable predictions:**
+
+- *min_samples sweep*: floor moves as `m·(1+6.6/(m−1)²)` → ≈15.5 at m=15,
+  ≈5.6 at m=5. If the fitted *shape* also tracks m, the shape=min_samples link
+  is physics; if it stays ~10, it was the anchored-effective-exponent
+  coincidence.
+- *Conditional master*: per-N′ shifted inv-gammas already measure 2× better
+  (KS(z) 0.0024 vs 0.0043) — suspect #1 confirmed in miniature.
+- *Mean identity*: any refit should keep `loc + scale/(shape−1) ≈ 25.0`; if
+  that drifts, the derived C is wrong, not the fit.
+- *N-invariance*: at fixed λ₀, the per-cluster law is local — floor, master,
+  and z-calibration should be unchanged at any N (radius √N), with only edge
+  effects (∝ ε/√N) shrinking. **CONFIRMED** (`analysis/ncheck.py`, ε=1.40,
+  ~37k clusters): N = 10k/20k/40k gives yield 1.22/2.39/4.96 per field
+  (exactly ∝ N), median R̃ 23.86/23.84/23.78, mean R̃ 25.13/25.03/24.96
+  (pinned at C≈25), mean N′ 10.674/10.670/10.659, median_z
+  +0.008/+0.004/−0.008 with KS(z) ≈ 0.011 — all at the per-run noise floor,
+  same master constants, no refit. The detector/webapp constants are valid for
+  any field size given the right λ₀. The faint −0.3% median drift at N=40k is
+  sign-consistent with suspect #3 (boundary clusters biasing R̃ slightly
+  high, their fraction ∝ ε/√N).
+
+One-line version: **the missed factor was that DBSCAN's output carries a
+guaranteed minimum density — min_samples per eps-ball — so R̃ has a hard floor
+at ≈ min_samples; every previous master assumed support down to zero and paid
+~0.07σ for it.** The remaining 0.02σ is the occupancy distribution breathing
+with eps, which no single-shape master can follow.
