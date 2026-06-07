@@ -1,10 +1,31 @@
 {
-  "collapse_variable": "R*eps^2",
+  "collapse_variable": "R*eps^alpha(eps)",
+  "alpha_c0": 2.031525,
+  "alpha_c1": 0.258273,
   "lambda0": 0.3183098861837907,
-  "invgamma_shape": 20.540440365846177,
-  "invgamma_loc": 0,
-  "invgamma_scale": 473.1449243054628,
-  "ks_invgamma": 0.026105336304895643,
+  "master": "shifted inverse-gamma, integer shape (= min_samples)",
+  "invgamma_shape": 10,
+  "invgamma_loc": 7.5091,
+  "invgamma_scale": 157.7035,
+  "ks_master": 0.005428053731797222,
+  "refit_this_pool": {
+    "loc": 7.439576201691004,
+    "scale": 158.62333859733633,
+    "ks": 0.0048911991743070815
+  },
+  "legacy_deprecated": {
+    "invgamma_floc0": {
+      "shape": 20.713800001777585,
+      "scale": 492.97414661319067,
+      "ks": 0.026029550832875836
+    },
+    "loglogistic": {
+      "shape": 7.913757110869218,
+      "scale": 24.090473455616326,
+      "ks": 0.02795967345653431
+    },
+    "note": "zero-loc families mis-centre z by ~0.07 sigma (docs/RCA.md \u00a77)"
+  },
   "raw_R_cap": 62.83185307179586,
-  "note": "valid in body; censoring at R_tilde=62.83*eps^2"
+  "note": "valid in body; censoring at R_tilde~62.83*eps^alpha(eps)"
 }

@@ -21,8 +21,10 @@ Given N points in a bounded 2D region, decide whether an algorithm-detected loca
 
 7. **A calibrated, two-arm detector.** `score(points)→{detections, p, z}` combines an LR arm (tight clumps) and a KDE arm (extended over-densities), each calibrated against the per-field null so the look-elsewhere correction is built in. KDE uses a **hybrid** null: analytic random-field theory where the smoothed field is Gaussian (coarse scale), Monte Carlo where it isn't (fine scale). Validated: silent on noise, correct localization and significance on injected tight and extended signal.
 
+8. **A closed-form, z-calibrated per-cluster master (2026-06-07).** One analytic null covers every eps: `R̃ = R·ε^α(ε)` with `α(ε)=2.03+0.26·ln ε`, scored by a **shifted inverse-gamma with integer shape 10 = min_samples** — `SF(R̃)=P(10, 157.70/(R̃−7.51))`, exact via two Poisson sums (no special functions). Pooled KS≈0.005 over eps 1.00–1.60; |median_z|≤0.02 per eps. The location shift is what every zero-loc candidate (log-logistic, plain inv-gamma) missed — they mis-centre z by ~0.07σ (root-cause analysis: `docs/RCA.md`). Shape 10 is the `a→∞` limit of the legacy Beta-Prime fits, closing the loop on the original empirical result.
+
 ## Deliverable
-An importable, calibrated, open detector (`modules/cluster_detector.py`) with a pluggable null model — a drop-in for scoring over-densities in real point-field data, replacing the invalid "threshold the density ratio" approach.
+An importable, calibrated, open detector (`modules/cluster_detector.py`) with a pluggable null model — a drop-in for scoring over-densities in real point-field data, replacing the invalid "threshold the density ratio" approach. Includes `score_clusters()`: instant per-cluster ratings against the analytic shifted inv-gamma(10) master (no MC; same constants as the live demo `webapp/`).
 
 ## Limitations
 - Calibrated for homogeneous CSR on a disk; heterogeneous backgrounds require a custom null (supported via `null_generator`).

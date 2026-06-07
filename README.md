@@ -17,8 +17,11 @@ Executive summary: [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md)
 DBSCAN-on-noise produces structured, non-trivial cluster statistics. The density ratio
 `R = (N'/S')/λ₀` obeys a factorization `R(eps) = scale(eps)·X` where `X` is
 eps-invariant: rescaling to `R̃ = R·ε^α(ε)` (where `α(ε) = 2.031 + 0.258·ln ε` is a
-running exponent fit from 110 eps values) collapses the distribution onto a single master
-(log-logistic, KS<0.03; or inv-gamma, shape≈20.5) with <0.5% residual spread. The correct
+running exponent fit from 110 eps values) collapses the distribution onto a single master:
+a **shifted inverse-gamma with integer shape 10** (= `min_samples`),
+`SF(R̃) = P(10, 157.70/(R̃ − 7.51))`, pooled KS≈0.005 over eps 1.00–1.60 and z-calibrated
+to |median_z| ≤ 0.02 at every eps. The location shift is essential — zero-loc families
+(log-logistic, plain inv-gamma) mis-centre z by ~0.07σ (`docs/RCA.md`). The correct
 detection statistic is the **Kulldorff scan likelihood ratio**, not the bare density ratio.
 A typical CSR cluster scores "~6σ" under naive per-window scoring — overstated ~10⁸×. See
 [docs/analytic_findings.md](docs/analytic_findings.md) for the full derivation.
@@ -45,12 +48,16 @@ for d in det.score(pts, zthr=3.0):
 
 For a non-CSR background: `calibrate(null_generator=lambda rng: my_points(rng))`.
 
+For cheap per-cluster ratings without any MC, `det.score_clusters(pts)` scores each
+DBSCAN cluster against the analytic shifted inv-gamma(10) master (same constants as the
+webapp demo). Per-cluster p — *not* look-elsewhere corrected; use `score()` for detection.
+
 ## Live demo
 
 `webapp/index.html` — static, dependency-free browser demo. Opens with no build step.
 Three live panels: noise field + detected clusters, `R̃ = R·ε^α(ε)` histogram converging
-to the log-logistic master curve, cluster z-scores forming N(0,1). Move the eps slider
-to see the collapse.
+to the shifted inv-gamma(10) master curve, cluster z-scores forming N(0,1). Move the eps
+slider to see the collapse.
 
 ```bash
 cd webapp && python3 -m http.server 8000   # then open http://localhost:8000

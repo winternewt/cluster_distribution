@@ -13,13 +13,20 @@ variable and read its survival:
 The corrected exponent supersedes the earlier R*eps^2 approximation (~5% residual); the
 c1*ln(eps) term captures the min_samples occupancy effect as eps varies.
 
-We build SF_master three ways and compare:
-  1. EMPIRICAL survival of pooled R_tilde   (gold standard, body+moderate tail)
-  2. INVERSE-GAMMA fit to pooled R_tilde    (mechanism-based, Findings #2/#3)
-  3. LOG-LOGISTIC (Fisk) fit               (compact: SF = 1/(1+(R_tilde/scale)^shape), JS-friendly)
+CANONICAL MASTER (2026-06-07, docs/RCA.md §7): SHIFTED inverse-gamma, integer shape 10,
+    SF(R_tilde) = P(10, y),  y = 157.7035/(R_tilde - 7.5091)
+shared verbatim with webapp/master.js and modules/cluster_detector.py. The location
+shift is essential: R|N'=n = n/(lambda0*S') is bounded away from 0 (hull area of an
+eps-connected cluster is bounded above), so zero-loc families mis-centre z by ~0.07
+sigma. Shape 10 = min_samples is the a->inf limit of the legacy Beta-Prime(a~46, b~10).
 
-Read-only on simdata/v2 and results/. Writes scorer_table.csv + plots + a small JSON
-of the master fit to analysis/.
+We also build/keep for comparison (all deprecated for calibration):
+  1. EMPIRICAL survival of pooled R_tilde   (gold standard, body+moderate tail)
+  2. zero-loc INVERSE-GAMMA fit             (legacy mechanism fit; loc bias)
+  3. LOG-LOGISTIC (Fisk) fit                (legacy compact master; loc bias)
+
+Read-only on simdata (parquet/HF) and results/. Writes scorer_table.csv + plots +
+scorer_master.json to analysis/.
 """
 import os, json, sys
 import numpy as np
@@ -41,6 +48,13 @@ RCAP = 10 / (0.5 * LAM0)          # 62.83 raw-R cap
 def alpha_fn(eps: float) -> float:
     """Running exponent: R_tilde = R * eps^alpha(eps) collapses eps-dependence to <0.5%."""
     return 2.031525 + 0.258273 * np.log(eps)
+
+# canonical shipped master — keep in sync with webapp/master.js & modules/cluster_detector.py
+IG_SHAPE, IG_LOC, IG_SCALE = 10, 7.5091, 157.7035
+
+def sf_master(rt):
+    """Canonical SF: shifted inverse-gamma, integer shape 10 (docs/RCA.md §7)."""
+    return stats.invgamma.sf(rt, IG_SHAPE, IG_LOC, IG_SCALE)
 
 def load_R(eps, cap=50000, seed=0):
     d = load_raw_df(eps)
@@ -67,15 +81,20 @@ def main():
     print(f"  R_tilde quantiles: " + ", ".join(f"q{q}={np.quantile(Rt,q/100):.2f}" for q in (50,90,95,99,99.9)))
 
     # --- master fits ---
-    ig = stats.invgamma.fit(Rt, floc=0)             # mechanism-based
-    ll = stats.fisk.fit(Rt, floc=0)                 # log-logistic (compact, JS-friendly)
+    igs = stats.invgamma.fit(Rt, fa=IG_SHAPE)        # shifted, shape frozen at 10 (canonical form)
+    ig = stats.invgamma.fit(Rt, floc=0)             # legacy zero-loc (deprecated: loc bias)
+    ll = stats.fisk.fit(Rt, floc=0)                 # legacy log-logistic (deprecated: loc bias)
     bp = stats.betaprime.fit(Rt)                     # phenomenological reference
+    ks_can = stats.kstest(Rt, "invgamma", args=(IG_SHAPE, IG_LOC, IG_SCALE))[0]
+    ks_igs = stats.kstest(Rt, "invgamma", args=igs)[0]
     ks_ig = stats.kstest(Rt, "invgamma", args=ig)[0]
     ks_ll = stats.kstest(Rt, "fisk", args=ll)[0]
     ks_bp = stats.kstest(Rt, "betaprime", args=bp)[0]
     print(f"\nmaster fits on R_tilde = R*eps^alpha(eps):")
-    print(f"  inverse-gamma: shape={ig[0]:.3f}, scale={ig[2]:.3f}   KS={ks_ig:.4f}")
-    print(f"  log-logistic:  shape={ll[0]:.5f}, scale={ll[2]:.5f}   KS={ks_ll:.4f}")
+    print(f"  CANONICAL shifted inv-gamma(10): loc={IG_LOC}, scale={IG_SCALE}   KS={ks_can:.4f}")
+    print(f"  refit on this pool (shape=10):   loc={igs[1]:.3f}, scale={igs[2]:.3f}   KS={ks_igs:.4f}")
+    print(f"  [legacy] inv-gamma floc=0: shape={ig[0]:.3f}, scale={ig[2]:.3f}   KS={ks_ig:.4f}")
+    print(f"  [legacy] log-logistic:     shape={ll[0]:.5f}, scale={ll[2]:.5f}   KS={ks_ll:.4f}")
     print(f"  beta-prime:    a={bp[0]:.2f} b={bp[1]:.2f} loc={bp[2]:.2f} scale={bp[3]:.2f}   KS={ks_bp:.4f}")
 
     # empirical survival (sorted)
@@ -85,17 +104,18 @@ def main():
     def sf_empirical(r):
         return np.interp(r, xs_emp, sf_emp, left=1.0, right=sf_emp[-1])
 
-    # --- VALIDATION: score held-out eps and check uniformity of p-values ---
-    print("\n=== validation: does R_tilde collapse let one master SF score every eps? ===")
-    print("  eps   median_p(~0.5)  frac_p<0.05(~0.05)  KS_invgamma  KS_loglogistic")
+    # --- VALIDATION: score held-out eps and check z-calibration of the canonical master ---
+    print("\n=== validation: canonical shifted inv-gamma(10) master, per eps ===")
+    print("  eps   median_z(~0)  mean_z(~0)  frac_p<0.05(~0.05)  KS_canonical  KS_ll_legacy")
     for eps in val_eps:
         R = load_R(eps, cap=40000, seed=999)
         if R is None: continue
         rt = R * eps**alpha_fn(eps)
-        p = sf_empirical(rt)
-        ks_i = stats.kstest(rt, "invgamma", args=ig)[0]
+        p = np.clip(sf_master(rt), 1e-300, 1 - 1e-16)
+        z = stats.norm.isf(p)
+        ks_c = stats.kstest(rt, "invgamma", args=(IG_SHAPE, IG_LOC, IG_SCALE))[0]
         ks_l = stats.kstest(rt, "fisk", args=ll)[0]
-        print(f"  {eps:.2f}   {np.median(p):.3f}            {np.mean(p<0.05):.3f}                {ks_i:.4f}       {ks_l:.4f}")
+        print(f"  {eps:.2f}   {np.median(z):+.3f}        {np.mean(z):+.3f}      {np.mean(p<0.05):.3f}               {ks_c:.4f}        {ks_l:.4f}")
 
     # --- legacy mixture & conservative envelope from results/regular_fit.csv (raw-R space) ---
     print("\n=== legacy per-eps Beta-Prime mixture vs conservative envelope (raw R) ===")
@@ -116,29 +136,35 @@ def main():
     rows = []
     for r_tilde in np.arange(20, 76, 2.0):
         p_emp = float(sf_empirical(r_tilde))
+        p_can = float(sf_master(r_tilde))
         p_ig  = float(stats.invgamma.sf(r_tilde, *ig))
         p_ll  = float(stats.fisk.sf(r_tilde, *ll))
-        z_emp = stats.norm.ppf(1 - np.clip(p_emp, 1e-12, 1-1e-12))
-        z_ig  = stats.norm.ppf(1 - np.clip(p_ig,  1e-12, 1-1e-12))
-        z_ll  = stats.norm.ppf(1 - np.clip(p_ll,  1e-12, 1-1e-12))
+        zz = lambda p: stats.norm.ppf(1 - np.clip(p, 1e-12, 1-1e-12))
         # raw R back-conversions using the corrected exponent at each eps
         rows.append(dict(R_tilde=r_tilde,
                          R_at_eps1_1=r_tilde/1.10**alpha_fn(1.10),
                          R_at_eps1_3=r_tilde/1.30**alpha_fn(1.30),
-                         p_empirical=p_emp, p_invgamma=p_ig, p_loglogistic=p_ll,
-                         z_empirical=z_emp, z_invgamma=z_ig, z_loglogistic=z_ll))
+                         p_master=p_can, p_empirical=p_emp,
+                         p_invgamma_floc0=p_ig, p_loglogistic=p_ll,
+                         z_master=zz(p_can), z_empirical=zz(p_emp),
+                         z_invgamma_floc0=zz(p_ig), z_loglogistic=zz(p_ll)))
     tab = pd.DataFrame(rows)
     tab.to_csv(os.path.join(HERE, "scorer_table.csv"), index=False)
 
-    # save master model
+    # save master model — canonical = shifted inv-gamma shape 10 (docs/RCA.md §7)
     with open(os.path.join(HERE, "scorer_master.json"), "w") as fh:
         json.dump(dict(
             collapse_variable="R*eps^alpha(eps)",
             alpha_c0=2.031525, alpha_c1=0.258273,
             lambda0=LAM0,
-            invgamma_shape=ig[0], invgamma_loc=ig[1], invgamma_scale=ig[2],
-            loglogistic_shape=ll[0], loglogistic_scale=ll[2],
-            ks_invgamma=ks_ig, ks_loglogistic=ks_ll,
+            master="shifted inverse-gamma, integer shape (= min_samples)",
+            invgamma_shape=IG_SHAPE, invgamma_loc=IG_LOC, invgamma_scale=IG_SCALE,
+            ks_master=ks_can,
+            refit_this_pool=dict(loc=igs[1], scale=igs[2], ks=ks_igs),
+            legacy_deprecated=dict(
+                invgamma_floc0=dict(shape=ig[0], scale=ig[2], ks=ks_ig),
+                loglogistic=dict(shape=ll[0], scale=ll[2], ks=ks_ll),
+                note="zero-loc families mis-centre z by ~0.07 sigma (docs/RCA.md §7)"),
             raw_R_cap=RCAP,
             note="valid in body; censoring at R_tilde~62.83*eps^alpha(eps)"), fh, indent=2)
 
@@ -146,7 +172,9 @@ def main():
     fig, ax = plt.subplots(1, 2, figsize=(14, 5))
     ax[0].semilogy(xs_emp, sf_emp, "k-", lw=1.5, label="empirical")
     gx = np.linspace(xs_emp[0], xs_emp[-1], 400)
-    ax[0].semilogy(gx, stats.invgamma.sf(gx, *ig), "b--", label=f"inv-gamma (KS={ks_ig:.3f})")
+    ax[0].semilogy(gx, sf_master(gx), "m-", lw=2,
+                   label=f"MASTER shifted inv-gamma(10) (KS={ks_can:.3f})")
+    ax[0].semilogy(gx, stats.invgamma.sf(gx, *ig), "b--", label=f"inv-gamma floc=0 (KS={ks_ig:.3f})")
     ax[0].semilogy(gx, stats.fisk.sf(gx, *ll),     "g-.",  label=f"log-logistic (KS={ks_ll:.3f})")
     ax[0].semilogy(gx, stats.betaprime.sf(gx, *bp), "r:",  label=f"beta-prime (KS={ks_bp:.3f})")
     ax[0].axvline(RCAP, ls=":", c="grey", lw=0.8); ax[0].set_ylim(1e-5, 1)
@@ -159,8 +187,8 @@ def main():
         if R is None: continue
         rt = np.sort(R*eps**alpha_fn(eps)); sf = 1-np.arange(1,len(rt)+1)/len(rt)
         ax[1].semilogy(rt, sf, lw=1.2, label=f"eps={eps:.2f}")
-    ax[1].semilogy(gx, stats.fisk.sf(gx, *ll), "g-.", lw=1.5, label="master log-logistic")
-    ax[1].semilogy(gx, stats.invgamma.sf(gx, *ig), "b--", lw=1.2, label="master inv-gamma")
+    ax[1].semilogy(gx, sf_master(gx), "m-", lw=2, label="MASTER shifted inv-gamma(10)")
+    ax[1].semilogy(gx, stats.fisk.sf(gx, *ll), "g-.", lw=1.2, label="legacy log-logistic")
     ax[1].set_ylim(1e-5,1); ax[1].set_xlabel(r"$\tilde{R}$"); ax[1].legend(); ax[1].grid(alpha=0.3)
     ax[1].set_title(r"Held-out eps survivals collapse onto one master")
     fig.tight_layout(); fig.savefig(os.path.join(HERE, "scorer_survival.png"), dpi=110); plt.close(fig)

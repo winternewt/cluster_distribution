@@ -12,6 +12,15 @@ look-elsewhere correction is built into the p-value. The KDE arm uses a HYBRID c
 random-field-theory (analytic) where the smoothed field is ~Gaussian (lambda0*pi*h^2 >~ 10),
 Monte Carlo otherwise.
 
+A third, cheaper facility is the PER-CLUSTER density-ratio score (master_sf /
+score_clusters): each DBSCAN cluster's R = (N'/S')/lambda0 is mapped to the collapse
+variable Rt = R*eps^alpha(eps) and scored against the analytic master null — a shifted
+inverse-gamma with integer shape 10 (= min_samples), SF(Rt) = P(10, scale/(Rt-loc)).
+Calibrated on simdata eps 1.10-1.40: |median_z| <= 0.017, KS(z) <= 0.009 (see
+docs/RCA.md §7). NOTE: per-cluster p, NOT look-elsewhere corrected — "is this cluster
+unusual for a CSR cluster", not "does this field contain signal". For detection use
+the LR/KDE arms.
+
 Provenance: built from the analysis in docs/analytic_findings.md (Findings #1-#9). The CSR
 density-ratio null is a heavy-tailed power law (tail index ~7); raw density ratio is a poor
 statistic for extended signal (use LR or KDE). See that doc for the full derivation.
@@ -39,6 +48,36 @@ from scipy.ndimage import gaussian_filter, maximum_filter
 from scipy.spatial import ConvexHull
 from scipy import stats
 from sklearn.cluster import DBSCAN
+
+# ---------------------------------------------------------------------------
+# eps-independent per-cluster master null (matches webapp/master.js exactly).
+# alpha(eps) = c0 + c1*ln(eps) collapses the eps-dependence of R = (N'/S')/lambda0;
+# Rt = R*eps^alpha is scored by a shifted inverse-gamma, integer shape 10:
+#     SF(Rt) = P(10, y),  y = ig_scale/(Rt - ig_loc),  P = lower regularized gamma.
+# Fit: pooled MLE over simdata eps 1.10-1.40, shape frozen at 10 (= min_samples; the
+# a->inf limit of the legacy Beta-Prime(a~46, b~10) fits). The location shift is
+# essential — zero-loc families mis-centre z by ~0.07 sigma (docs/RCA.md §7).
+MASTER = dict(c0=2.031525, c1=0.258273, ig_shape=10, ig_loc=7.5091, ig_scale=157.7035)
+
+
+def alpha_eps(eps: float) -> float:
+    """Running collapse exponent alpha(eps) = c0 + c1*ln(eps)."""
+    return MASTER["c0"] + MASTER["c1"] * np.log(eps)
+
+
+def master_sf(rt):
+    """Survival P(Rt' >= rt) of the collapse variable Rt = R*eps^alpha(eps) under CSR.
+
+    Valid in the body and moderate tail; data past the min_area censoring cap
+    (Rt ~ 62.83*eps^alpha, z ~ 4) is unvalidated.
+    """
+    rt = np.atleast_1d(np.asarray(rt, float))
+    return stats.invgamma.sf(rt, MASTER["ig_shape"], MASTER["ig_loc"], MASTER["ig_scale"])
+
+
+def master_z(rt):
+    """Gaussian-equivalent z = Phi^-1(1 - SF_master(rt)); ~N(0,1) over CSR clusters."""
+    return stats.norm.isf(np.clip(master_sf(rt), 1e-300, 1 - 1e-12))
 
 
 @dataclass
@@ -115,7 +154,7 @@ class Detector:
                 continue
             if S <= 0:
                 continue
-            out.append((self._twolnLR(len(cp), S), len(cp), cp[:, 0].mean(), cp[:, 1].mean()))
+            out.append((self._twolnLR(len(cp), S), len(cp), S, cp[:, 0].mean(), cp[:, 1].mean()))
         return out
 
     def _kde(self, pts, h):
@@ -210,7 +249,7 @@ class Detector:
         det: List[Detection] = []
         cl = self._lr_clusters(pts)
         if cl:
-            stat, npts, cx, cy = max(cl, key=lambda c: c[0])
+            stat, npts, _, cx, cy = max(cl, key=lambda c: c[0])
             p = float(self._sf["lr"](stat)[0])
             det.append(Detection("DBSCAN+LR", round(stat, 2), round(cx, 2), round(cy, 2),
                                  p, round(self._z(p), 2), self.eps, npts))
@@ -223,6 +262,25 @@ class Detector:
                 det.append(Detection(tag, round(z0, 2), round(cx, 2), round(cy, 2),
                                      p, round(self._z(p), 2), h))
         return [d for d in sorted(det, key=lambda d: -d.z) if d.z >= zthr]
+
+    def score_clusters(self, points: np.ndarray) -> List[Detection]:
+        """Per-cluster density-ratio scores against the analytic CSR master (no MC needed).
+
+        Each DBSCAN cluster's R = (N'/S')/lambda0 is collapsed to Rt = R*eps^alpha(eps)
+        and scored by the shifted inverse-gamma master (module-level MASTER). The z's are
+        ~N(0,1) over CSR clusters. NOT look-elsewhere corrected: this answers "how unusual
+        is this cluster among CSR clusters", not "does this field contain signal" — for
+        the latter use score() (per-field max statistics).
+        """
+        pts = np.asarray(points, float)
+        a = alpha_eps(self.eps)
+        det: List[Detection] = []
+        for _, npts, S, cx, cy in self._lr_clusters(pts):
+            rt = (npts / S) / self.lam0 * self.eps ** a
+            p = float(master_sf(rt)[0])
+            det.append(Detection("DBSCAN+Rmaster", round(rt, 2), round(cx, 2), round(cy, 2),
+                                 p, round(float(master_z(rt)[0]), 2), self.eps, npts))
+        return sorted(det, key=lambda d: -d.z)
 
     # ---------- persistence ----------
     def _save_arrays(self, path):
