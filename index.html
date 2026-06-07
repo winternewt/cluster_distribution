@@ -33,7 +33,7 @@
   <p>Each frame draws <b id="Nlabel">N</b> uniform points in a disk (pure noise / complete spatial randomness), runs DBSCAN,
   and measures every detected cluster's density ratio. <b>Left:</b> the field with detected clusters outlined.
   <b>Middle:</b> the rescaled density ratio <code>R&middot;&epsilon;<sup>&alpha;(&epsilon;)</sup></code> histogram converging to the predicted master curve
-  (log-logistic master — the same curve at every&nbsp;&epsilon;, that's the collapse; &alpha;(&epsilon;)=2.03+0.26&middot;ln&epsilon; captures the eps-varying min_samples occupancy effect).
+  (shifted inverse-gamma master, integer shape 10&nbsp;= min_samples — the same curve at every&nbsp;&epsilon;, that's the collapse; &alpha;(&epsilon;)=2.03+0.26&middot;ln&epsilon; captures the eps-varying min_samples occupancy effect).
   <b>Right:</b> each cluster scored through the null &rarr; its z-equivalent. A heavy-tailed statistic, once calibrated,
   piles into a clean standard-normal bell (the probability-integral transform).</p>
 </header>
@@ -55,7 +55,7 @@
   <div class="panel">
     <h2>R&middot;&epsilon;<sup>&alpha;(&epsilon;)</sup> histogram vs predicted master</h2>
     <canvas id="hr" width="380" height="360"></canvas>
-    <small>blue bars = live data · white line = log-logistic master (eps-invariant). KS&asymp;<span id="ks">–</span>. &alpha;(&epsilon;)=2.03+0.26&middot;ln&epsilon;; geometric 2 + min_samples occupancy correction</small>
+    <small>blue bars = live data · white line = shifted inv-gamma(10) master (eps-invariant). KS&asymp;<span id="ks">–</span>. &alpha;(&epsilon;)=2.03+0.26&middot;ln&epsilon;; geometric 2 + min_samples occupancy correction</small>
   </div>
   <div class="panel">
     <h2>Cluster z-scores &rarr; standard normal</h2>
@@ -147,7 +147,7 @@ function analyze(xy,eps){
     const alpha=MASTER.c0+MASTER.c1*Math.log(eps);
     const R=(g.length/area)/LAM0, Rt=R*Math.pow(eps,alpha);
     let cx=0,cy=0; for(const p of pts){cx+=p[0];cy+=p[1];} cx/=pts.length;cy/=pts.length;
-    const sf=1/(1+Math.pow(Rt/MASTER.ll_scale,MASTER.ll_shape)), z=normInv(1-Math.min(Math.max(sf,1e-9),1-1e-9));
+    const sf=masterSF(Rt), z=normInv(1-Math.min(Math.max(sf,1e-9),1-1e-9));
     clusters.push({members:g,Rt,z,hull,cx,cy});
   }
   return {lab,clusters};
@@ -206,13 +206,13 @@ function drawHist(ctx,H,nb,bw,x0,xmax,col,curveX,curveY,curveLabel){
 function ksRt(){
   const tot=rtH.reduce((a,b)=>a+b,0); if(tot<50)return null;
   let cum=0,maxd=0;
-  for(let i=0;i<RT_NB;i++){cum+=rtH[i]/tot; const x=(i+1)*RT_BW; const tk=Math.pow(x/MASTER.ll_scale,MASTER.ll_shape); const mcdf=tk/(1+tk); maxd=Math.max(maxd,Math.abs(cum-mcdf));}
+  for(let i=0;i<RT_NB;i++){cum+=rtH[i]/tot; const x=(i+1)*RT_BW; const mcdf=masterCDF(x); maxd=Math.max(maxd,Math.abs(cum-mcdf));}
   return maxd;
 }
 
 // ---------- master curves ----------
 const RtX=[],RtY=[];
-for(let rt=0.5;rt<=80;rt+=0.5){const k=MASTER.ll_shape,c=MASTER.ll_scale,t=rt/c,tk=Math.pow(t,k);RtX.push(rt);RtY.push((k/c)*Math.pow(t,k-1)/(1+tk)/(1+tk));}
+for(let rt=0.5;rt<=80;rt+=0.5){RtX.push(rt);RtY.push(masterPDF(rt));}
 const ZX=[],ZY=[]; for(let z=Z_LO;z<=Z_HI;z+=0.1){ZX.push(z);ZY.push(normPdf(z));}
 
 // ---------- loop ----------
@@ -230,7 +230,7 @@ function tick(){
       framesSince++;
     }
     if(lastRes)drawField(lastXY,lastRes);
-    drawHist(rc,rtH,RT_NB,RT_BW,0,RT_MAX,'#5ec8f7',RtX,RtY,'log-logistic master');
+    drawHist(rc,rtH,RT_NB,RT_BW,0,RT_MAX,'#5ec8f7',RtX,RtY,'inv-gamma(10) master');
     drawHist(zc,zH,Z_NB,Z_BW,Z_LO,Z_HI,'#7ee787',ZX,ZY,'N(0,1)');
     document.getElementById('nf').textContent=nFields;
     document.getElementById('nc').textContent=nClusters;
